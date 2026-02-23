@@ -62,7 +62,7 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
             if (!messageText) messageText = `Melder "${sensorName}" hat ausgelöst. Bitte die Falle kontrollieren.`;
         } else if (type === 'LOW_BATTERY') {
             const voltStr = catchSensor.batteryVoltage ? `${(catchSensor.batteryVoltage / 1000).toFixed(2).replace('.', ',')}V` : '---V';
-            notificationTitle = `Warnung - Batterie bei Melder "${sensorName}" auf (${catchSensor.batteryPercent || 0}%)`;
+            notificationTitle = `Warnung - Batterie bei Melder "${sensorName}" auf ${catchSensor.batteryPercent || 0}%`;
             if (!messageText) messageText = `Batterie bei Melder "${sensorName}" niedrig. (${voltStr}) (${catchSensor.batteryPercent || 0}%)`;
         } else if (type === 'CONNECTION_LOST') {
             const diffHours = Math.round((Date.now() - new Date(catchSensor.lastSeen).getTime()) / 3600000);
