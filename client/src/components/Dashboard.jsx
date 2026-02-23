@@ -81,6 +81,18 @@ const Dashboard = ({ onLogout }) => {
         const handleOpenModal = () => setIsAddModalOpen(true);
         window.addEventListener('open-add-catch-sensor', handleOpenModal);
 
+        // ── Android Back Button Support ──────────────────────────────────────────
+        const handleBackEvent = (ev) => {
+            if (isAddModalOpen) {
+                ev.preventDefault();
+                setIsAddModalOpen(false);
+            } else if (selectedCatch) {
+                ev.preventDefault();
+                setSelectedCatch(null);
+            }
+        };
+        window.addEventListener('backbutton', handleBackEvent);
+
         // ── App State / Resume Listeners ─────────────────────────────────────────
         // Trigger a refresh whenever the app returns to focus or is resumed
 
@@ -116,6 +128,7 @@ const Dashboard = ({ onLogout }) => {
             socket.off('catchSensorUpdate');
             socket.disconnect();
             window.removeEventListener('open-add-catch-sensor', handleOpenModal);
+            window.removeEventListener('backbutton', handleBackEvent);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             if (appStateListener) appStateListener.remove();
             if (Capacitor.isNativePlatform()) {

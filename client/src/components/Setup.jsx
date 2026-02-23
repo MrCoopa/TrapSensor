@@ -170,6 +170,24 @@ const Setup = ({ onLogout }) => {
         fetchData();
     }, []);
 
+    // ── Android Back Button Support ──────────────────────────────────────────
+    useEffect(() => {
+        const handleBackEvent = (ev) => {
+            if (isEditModalOpen) {
+                ev.preventDefault();
+                setIsEditModalOpen(false);
+            } else if (selectedCatch) {
+                ev.preventDefault();
+                setSelectedCatch(null);
+            } else if (isChangingPassword) {
+                ev.preventDefault();
+                setIsChangingPassword(false);
+            }
+        };
+        window.addEventListener('backbutton', handleBackEvent);
+        return () => window.removeEventListener('backbutton', handleBackEvent);
+    }, [isEditModalOpen, selectedCatch, isChangingPassword]);
+
     const handleUpdateProfile = async () => {
         setIsSavingProfile(true);
         setStatusMessage({ text: '', type: '' });

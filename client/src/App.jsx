@@ -9,9 +9,45 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import API_BASE from './apiConfig';
 
+import { App as CapApp } from '@capacitor/app';
+
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); // 'login', 'register', 'dashboard', 'setup'
+
+  // ── Android Back Button Support ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const backListener = CapApp.addListener('backButton', () => {
+      // 1. Dispatch custom event so components can intercept (close modals)
+      const ev = new CustomEvent('backbutton', {
+        cancelable: true,
+        detail: { currentView: view }
+      });
+      window.dispatchEvent(ev);
+
+      if (ev.defaultPrevented) {
+        console.log('App: Back button handled by component (modal closed).');
+        return;
+      }
+
+      // 2. Navigation fallback
+      if (view === 'setup') {
+        setView('dashboard');
+      } else if (view === 'register') {
+        setView('login');
+      } else {
+        // Dashboard or Login -> Exit
+        console.log('App: Back button -> Exiting app.');
+        CapApp.exitApp();
+      }
+    });
+
+    return () => {
+      backListener.then(l => l.remove());
+    };
+  }, [view]);
 
   // ── Global Push Notification Logic ──────────────────────────────────────────
   useEffect(() => {
