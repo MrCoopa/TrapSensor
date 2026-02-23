@@ -48,9 +48,10 @@ const setupWatchdog = (io) => {
                 // ── 1. ALARM: repeat alert while sensor remains triggered and not acknowledged ──
                 if (sensor.status === 'triggered') {
                     // Skip if user has acknowledged this alarm event
-                    const isAcknowledged = sensor.alarmAcknowledgedAt &&
-                        sensor.lastCatchAlert &&
-                        new Date(sensor.alarmAcknowledgedAt) >= new Date(sensor.lastCatchAlert);
+                    const isAcknowledged = !!sensor.alarmAcknowledgedAt && (
+                        !sensor.lastCatchAlert ||
+                        new Date(sensor.alarmAcknowledgedAt) >= new Date(sensor.lastCatchAlert)
+                    );
 
                     if (isAcknowledged) {
                         console.log(`Watchdog: ✅ Alarm acknowledged for "${sensorLabel}" — skipping re-alert`);

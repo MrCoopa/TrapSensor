@@ -147,5 +147,18 @@ foreach ($folder in $launcherSizes.Keys) {
     Write-Host "Generated Foreground: $folder"
 }
 
+# 4. Web PWA Icons (client/public/icons)
+$webIconsPath = "d:\CatchSensor\CatchSensor\client\public\icons"
+if (-not (Test-Path $webIconsPath)) { New-Item -ItemType Directory -Path $webIconsPath -Force }
+$webSizes = @(48, 72, 96, 128, 192, 256, 512)
+foreach ($size in $webSizes) {
+    $resized = Get-ResizedBitmap $croppedBmp $size $size 0.9
+    $transparent = Get-TransparentBitmap $resized
+    # We save as .png because System.Drawing support for .webp is limited
+    $transparent.Save((Join-Path $webIconsPath "icon-$size.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+    $resized.Dispose(); $transparent.Dispose()
+    Write-Host "Generated Web Icon: ${size}x${size}"
+}
+
 $croppedBmp.Dispose(); $sourceBmp.Dispose()
-Write-Host "All assets RE-ENLARGED successfully."
+Write-Host "All assets (Android + Web) regenerated successfully."
