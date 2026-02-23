@@ -508,20 +508,6 @@ const Setup = ({ onLogout }) => {
                             </div>
                         </div>
 
-                        <div className="px-4 pb-4 flex flex-col space-y-2">
-                            <button
-                                onClick={handleRemoteTestPush}
-                                className="w-full py-2 bg-gray-50 text-[#1b3a2e] text-[10px] font-black uppercase tracking-widest rounded-xl border border-gray-100 hover:bg-gray-100 transition-all"
-                            >
-                                Push-Test senden
-                            </button>
-                            <button
-                                onClick={handleClearPushSubscriptions}
-                                className="w-full py-2 text-gray-400 hover:text-red-500 text-[9px] font-bold uppercase tracking-wider transition-all"
-                            >
-                                Push-Verbindung zurücksetzen
-                            </button>
-                        </div>
 
                         {/* Battery Threshold Slider */}
                         <div className="p-4 space-y-3">
@@ -952,6 +938,22 @@ const Setup = ({ onLogout }) => {
                                         </div>
                                     </div>
                                     <ChevronRight size={18} className="text-gray-300" />
+                                </div>
+
+                                <div
+                                    onClick={handleClearPushSubscriptions}
+                                    className="p-4 flex items-center justify-between hover:bg-red-50 group transition-colors cursor-pointer"
+                                >
+                                    <div className="flex items-center space-x-4">
+                                        <div className="bg-red-50 p-2.5 rounded-2xl text-red-600 group-hover:bg-red-100">
+                                            <Trash2 size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-red-600">Push-Verbindung löschen</p>
+                                            <p className="text-[10px] text-red-400 font-medium whitespace-nowrap">Löscht alle Abos für dieses Konto</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-red-300" />
                                 </div>
 
 
