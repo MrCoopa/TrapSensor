@@ -130,7 +130,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                                 {reading.snr !== undefined && (
                                                     <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
                                                         <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">SNR</span>
-                                                        <span className="text-[10px] font-bold text-gray-700">{Number(reading.snr).toFixed(1)}</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.snr != null ? Number(reading.snr).toFixed(1) : 'N/A'}</span>
                                                     </div>
                                                 )}
                                                 {reading.spreadingFactor && (
