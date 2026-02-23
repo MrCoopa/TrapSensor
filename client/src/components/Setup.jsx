@@ -24,7 +24,7 @@ const Setup = ({ onLogout }) => {
     const [loadingShares, setLoadingShares] = useState(false);
     const [pushoverAppKey, setPushoverAppKey] = useState('');
     const [pushoverUserKey, setPushoverUserKey] = useState('');
-    const [batteryThreshold, setBatteryThreshold] = useState(20);
+    const [batteryThreshold, setBatteryThreshold] = useState(15);
     const [batteryAlertInterval, setBatteryAlertInterval] = useState(8);
     const [offlineAlertInterval, setOfflineAlertInterval] = useState(8);
     const [catchAlertInterval, setCatchAlertInterval] = useState(3);

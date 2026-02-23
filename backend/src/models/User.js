@@ -49,7 +49,7 @@ const User = sequelize.define('User', {
     },
     batteryThreshold: {
         type: DataTypes.INTEGER,
-        defaultValue: 20,
+        defaultValue: 15,
     },
     batteryAlertInterval: {
         type: DataTypes.INTEGER,
