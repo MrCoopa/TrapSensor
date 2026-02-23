@@ -58,16 +58,16 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
         let messageText = customMessage;
 
         if (type === 'ALARM') {
-            notificationTitle = `FANG - ${sensorName}`;
-            if (!messageText) messageText = `${sensorName} hat ausgelöst. Bitte kontrollieren.`;
+            notificationTitle = `Fang! - Melder "${sensorName}"`;
+            if (!messageText) messageText = `Melder "${sensorName}" hat ausgelöst. Bitte die Falle kontrollieren.`;
         } else if (type === 'LOW_BATTERY') {
-            const voltStr = catchSensor.batteryVoltage ? ` (${(catchSensor.batteryVoltage / 1000).toFixed(2)}V)` : '';
-            notificationTitle = `CatchSensor: Batterie-Warnung`;
-            if (!messageText) messageText = `Batterie bei "${sensorName}" niedrig.${voltStr} (${catchSensor.batteryPercent || 0}%)`;
+            const voltStr = catchSensor.batteryVoltage ? `${(catchSensor.batteryVoltage / 1000).toFixed(2).replace('.', ',')}V` : '---V';
+            notificationTitle = `Warnung - Batterie bei Melder "${sensorName}" auf (${catchSensor.batteryPercent || 0}%)`;
+            if (!messageText) messageText = `Batterie bei Melder "${sensorName}" niedrig. (${voltStr}) (${catchSensor.batteryPercent || 0}%)`;
         } else if (type === 'CONNECTION_LOST') {
             const diffHours = Math.round((Date.now() - new Date(catchSensor.lastSeen).getTime()) / 3600000);
-            notificationTitle = `CatchSensor: Verbindung verloren`;
-            if (!messageText) messageText = `${sensorName} hat seit ${diffHours} Stunden keinen Status gesendet.`;
+            notificationTitle = `Warnung - Melder "${sensorName}" seit ${diffHours} Stunden offline.`;
+            if (!messageText) messageText = `Seit ${diffHours} Stunden keine Statusmeldung von Melder "${sensorName}" empfangen.`;
         } else if (type === 'TEST') {
             notificationTitle = 'CatchSensor: Test-Push';
             if (!messageText) messageText = 'Test-Benachrichtigung erfolgreich empfangen.';
