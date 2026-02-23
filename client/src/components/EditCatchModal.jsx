@@ -6,7 +6,8 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
     const [formData, setFormData] = useState({
         name: '',
         location: '',
-        alias: ''
+        alias: '',
+        revierweltWebhookUrl: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -16,7 +17,8 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
             setFormData({
                 name: catchSensor.name || '',
                 location: catchSensor.location || '',
-                alias: catchSensor.alias || ''
+                alias: catchSensor.alias || '',
+                revierweltWebhookUrl: catchSensor.revierweltWebhookUrl || ''
             });
         }
     }, [catchSensor]);
@@ -94,6 +96,18 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
                             className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-[#1b3a2e]/20 outline-none transition-all"
                             placeholder="z.B. Obere Dickung / Bachlauf"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 font-mono text-[10px] text-green-700">Revierwelt Webhook (optional)</label>
+                        <input
+                            type="text"
+                            value={formData.revierweltWebhookUrl}
+                            onChange={(e) => setFormData({ ...formData, revierweltWebhookUrl: e.target.value })}
+                            className="w-full bg-green-50/30 border border-green-100/50 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-600/20 outline-none transition-all text-sm"
+                            placeholder="https://revierwelt.de/webhook/..."
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1 italic px-1">Wird bei jedem Fang automatisch aufgerufen.</p>
                     </div>
 
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 mt-6">

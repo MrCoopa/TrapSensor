@@ -76,6 +76,11 @@ const CatchSensor = sequelize.define('CatchSensor', {
     userId: {
         type: DataTypes.UUID,
         allowNull: true,
+    },
+    revierweltWebhookUrl: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        comment: 'Optional Revierwelt Webhook URL'
     }
 }, {
     tableName: 'CatchSensors',

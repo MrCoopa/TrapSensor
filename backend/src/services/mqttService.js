@@ -96,20 +96,46 @@ const connectToBroker = (config, onMessage) => {
 };
 
 
+const crypto = require('crypto');
+
 const handleMQTTMessage = async (topic, payload, io, pathType) => {
     try {
         let normalizedData = null;
         let deviceId = null;
 
         if (pathType === 'NB-IOT') {
-            // Path A: NB-IoT Binary (4 Bytes)
+            // Path A: NB-IoT Binary (4 Bytes or 16 Bytes Encrypted)
             // Payload format: [Status (1), Voltage (2), RSSI (1)]
-            if (payload.length < 4) return;
-
             deviceId = topic.split('/')[1];
-            const statusByte = payload.readUInt8(0);
-            const voltage = payload.readUInt16BE(1);
-            const rssi = payload.readUInt8(3);
+            let dataBuffer = payload;
+
+            // Auto-Detect AES (32 chars hex = 16 bytes binary)
+            // Note: The SIM7020E sends HEX-ASCII over MQTT if we used our last firmware update.
+            // If the buffer length is 32, it's a hex string of 16-byte encrypted block.
+            if (payload.length === 32 && process.env.AES_SECRET_KEY && process.env.AES_SECRET_KEY.length === 32) {
+                try {
+                    const encrypted = Buffer.from(payload.toString(), 'hex');
+                    const decipher = crypto.createDecipheriv('aes-256-ecb', Buffer.from(process.env.AES_SECRET_KEY), null);
+                    decipher.setAutoPadding(false);
+                    dataBuffer = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId}`);
+                } catch (decErr) {
+                    console.error(`MQTT: ❌ AES Decryption failed for ${deviceId}:`, decErr.message);
+                    return; // Fail if decryption is attempted but fails
+                }
+            } else if (payload.length === 8) {
+                // Handle unencrypted 8-char hex string (4 bytes)
+                dataBuffer = Buffer.from(payload.toString(), 'hex');
+            }
+
+            if (dataBuffer.length < 4) {
+                console.error(`MQTT: ⚠️ Invalid payload length (${dataBuffer.length}) for NB-IOT device ${deviceId}`);
+                return;
+            }
+
+            const statusByte = dataBuffer.readUInt8(0);
+            const voltage = dataBuffer.readUInt16BE(1);
+            const rssi = dataBuffer.readUInt8(3);
 
             normalizedData = {
                 type: 'NB-IOT',

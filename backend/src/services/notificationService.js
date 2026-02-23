@@ -105,6 +105,36 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
             });
         }
 
+        // ── 3. Revierwelt Webhook (Optional) ──────────────────────────────────
+        if (type === 'ALARM' && catchSensor.revierweltWebhookUrl) {
+            const https = require('https');
+            const data = JSON.stringify({
+                imei: catchSensor.imei || catchSensor.deviceId,
+                sensorName: sensorName,
+                status: 'triggered',
+                timestamp: new Date().toISOString()
+            });
+
+            const options = {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': data.length
+                }
+            };
+
+            const req = https.request(catchSensor.revierweltWebhookUrl, options, (res) => {
+                console.log(`NotificationEngine: Revierwelt Webhook status: ${res.statusCode}`);
+            });
+
+            req.on('error', (err) => {
+                console.error('NotificationEngine: Revierwelt Webhook failed:', err);
+            });
+
+            req.write(data);
+            req.end();
+        }
+
         // ── Update alert timestamps ───────────────────────────────────────────────
         if (type === 'LOW_BATTERY') await catchSensor.update({ lastBatteryAlert: new Date() });
         else if (type === 'CONNECTION_LOST') await catchSensor.update({ lastOfflineAlert: new Date() });

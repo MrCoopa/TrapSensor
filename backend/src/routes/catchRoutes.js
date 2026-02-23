@@ -113,7 +113,7 @@ router.patch('/:id/status', async (req, res) => {
 // Rename/Update catch (owner only)
 router.patch('/:id', async (req, res) => {
     try {
-        const { name, alias, location } = req.body;
+        const { name, alias, location, revierweltWebhookUrl } = req.body;
         const catchSensor = await CatchSensor.findOne({ where: { id: req.params.id, userId: req.user.id } });
 
         if (!catchSensor) return res.status(404).json({ error: 'Falle nicht gefunden oder kein Zugriff' });
@@ -121,6 +121,7 @@ router.patch('/:id', async (req, res) => {
         if (name) catchSensor.name = name;
         if (alias) catchSensor.alias = alias;
         if (location !== undefined) catchSensor.location = location;
+        if (revierweltWebhookUrl !== undefined) catchSensor.revierweltWebhookUrl = revierweltWebhookUrl;
 
         await catchSensor.save();
 
