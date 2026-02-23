@@ -61,7 +61,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                     <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
                                         <div className="flex flex-col">
                                             <span className="text-[8px] uppercase text-gray-400 font-bold">SNR</span>
-                                            <span className="text-[10px] font-bold text-gray-700">{Number(catchSensor.lorawanCatchSensor.snr).toFixed(1)}</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.lorawanCatchSensor?.snr != null ? Number(catchSensor.lorawanCatchSensor.snr).toFixed(1) : 'N/A'}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[8px] uppercase text-gray-400 font-bold">SF</span>

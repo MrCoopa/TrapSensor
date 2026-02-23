@@ -127,7 +127,7 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge }) => {
                         </div>
                         {isLoRa && catchSensor.lorawanCatchSensor && (
                             <div className="flex items-center gap-1.5 ml-1">
-                                <span className="text-[9px] font-extrabold text-[#1b3a2e]/60 bg-white/50 px-1.5 py-0.5 rounded border border-[#1b3a2e]/10 shadow-sm uppercase leading-none">SNR {Number(catchSensor.lorawanCatchSensor.snr).toFixed(1)}</span>
+                                <span className="text-[9px] font-extrabold text-[#1b3a2e]/60 bg-white/50 px-1.5 py-0.5 rounded border border-[#1b3a2e]/10 shadow-sm uppercase leading-none">SNR {catchSensor.lorawanCatchSensor?.snr != null ? Number(catchSensor.lorawanCatchSensor.snr).toFixed(1) : 'N/A'}</span>
                                 <span className="text-[9px] font-extrabold text-[#1b3a2e]/60 bg-white/50 px-1.5 py-0.5 rounded border border-[#1b3a2e]/10 shadow-sm uppercase leading-none">SF {catchSensor.lorawanCatchSensor.spreadingFactor}</span>
                             </div>
                         )}

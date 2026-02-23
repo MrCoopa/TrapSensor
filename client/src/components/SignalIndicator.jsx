@@ -53,7 +53,7 @@ const SignalIndicator = ({ rssi, snr, type = 'NB-IOT', className = "", barWidth 
     const colorClass = getColorClass(bars, rssi, snr, type);
 
     const tooltipText = type === 'LORAWAN'
-        ? `Signal: ${rssi || 'N/A'} dBm, Qualität (SNR): ${snr !== undefined ? snr.toFixed(1) : 'N/A'} dB`
+        ? `Signal: ${rssi || 'N/A'} dBm, Qualität (SNR): ${snr != null ? Number(snr).toFixed(1) : 'N/A'} dB`
         : `Signalstärke: ${rssi || 'N/A'} dBm`;
 
     return (
