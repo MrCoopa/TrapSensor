@@ -200,7 +200,6 @@ router.post('/:id/acknowledge', async (req, res) => {
         // so the next incoming trigger sends a push notification immediately.
         await catchSensor.update({
             alarmAcknowledgedAt: new Date(),
-            lastCatchAlert: null
         });
 
         // Push the updated sensor state to the client immediately via Socket.IO,

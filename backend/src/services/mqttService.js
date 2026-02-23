@@ -244,6 +244,7 @@ const updateCatchSensorData = async (deviceId, data, io) => {
         // This prevents "flapping" or heartbeat messages from clearing the user's acknowledgment.
         if (data.status === 'triggered' && catchSensor.status === 'active') {
             catchSensor.alarmAcknowledgedAt = null;
+            catchSensor.lastCatchAlert = null;
         }
 
         if (data.type === 'NB-IOT') {
