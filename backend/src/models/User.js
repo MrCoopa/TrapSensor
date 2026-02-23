@@ -43,6 +43,10 @@ const User = sequelize.define('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
+    pushoverEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
     batteryThreshold: {
         type: DataTypes.INTEGER,
         defaultValue: 20,

@@ -29,6 +29,7 @@ const Setup = ({ onLogout }) => {
     const [offlineAlertInterval, setOfflineAlertInterval] = useState(8);
     const [catchAlertInterval, setCatchAlertInterval] = useState(3);
     const [showPushover, setShowPushover] = useState(false);
+    const [pushoverEnabled, setPushoverEnabled] = useState(false);
     const [notifPermission, setNotifPermission] = useState('default');
     const [showDebug, setShowDebug] = useState(false);
 
@@ -152,6 +153,7 @@ const Setup = ({ onLogout }) => {
                 setBatteryAlertInterval(userData.batteryAlertInterval || 24);
                 setOfflineAlertInterval(userData.offlineAlertInterval || 24);
                 setCatchAlertInterval(userData.catchAlertInterval || 1);
+                setPushoverEnabled(userData.pushoverEnabled || false);
                 if (userData.pushEnabled !== undefined) { /* ignore, always enabled now */ }
 
 
@@ -189,6 +191,10 @@ const Setup = ({ onLogout }) => {
     }, [isEditModalOpen, selectedCatch, isChangingPassword]);
 
     const handleUpdateProfile = async () => {
+        handleUpdateProfileWithVal();
+    };
+
+    const handleUpdateProfileWithVal = async (overrides = {}) => {
         setIsSavingProfile(true);
         setStatusMessage({ text: '', type: '' });
         try {
@@ -203,21 +209,19 @@ const Setup = ({ onLogout }) => {
                     pushoverAppKey,
                     pushoverUserKey,
                     batteryThreshold,
-                    catchAlertInterval
+                    catchAlertInterval,
+                    pushoverEnabled,
+                    ...overrides
                 })
-
             });
 
             if (res.ok) {
-                setStatusMessage({ text: 'Profil erfolgreich aktualisiert!', type: 'success' });
-                // Re-fetch to confirm
-                fetchData();
+                // fetchData(); // Remove to avoid flickering if needed, or keep for consistency
             } else {
-                setStatusMessage({ text: 'Fehler beim Speichern des Profils.', type: 'error' });
+                setStatusMessage({ text: 'Fehler beim Speichern.', type: 'error' });
             }
         } catch (error) {
             console.error('Update profile error:', error);
-            setStatusMessage({ text: 'Verbindungsfehler.', type: 'error' });
         } finally {
             setIsSavingProfile(false);
         }
@@ -557,6 +561,18 @@ const Setup = ({ onLogout }) => {
                                 <div className="flex-1">
                                     <p className="text-sm font-bold text-gray-900">Pushover Integration</p>
                                     <p className="text-[10px] text-gray-400 font-medium">Zusätzliche Alarme am Handy</p>
+                                </div>
+                                <div className="flex items-center space-x-2 px-2" onClick={(e) => e.stopPropagation()}>
+                                    <div
+                                        onClick={() => {
+                                            const newVal = !pushoverEnabled;
+                                            setPushoverEnabled(newVal);
+                                            setTimeout(() => handleUpdateProfileWithVal({ pushoverEnabled: newVal }), 0);
+                                        }}
+                                        className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${pushoverEnabled ? 'bg-[#1b3a2e]' : 'bg-gray-200'}`}
+                                    >
+                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${pushoverEnabled ? 'left-6' : 'left-1'}`} />
+                                    </div>
                                 </div>
                                 <ChevronRight
                                     size={18}

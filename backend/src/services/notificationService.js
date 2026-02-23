@@ -92,7 +92,7 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
         }
 
         // ── 2. Pushover (optional secondary channel) ─────────────────────────────
-        if (user.pushoverAppKey && user.pushoverUserKey) {
+        if (user.pushoverEnabled && user.pushoverAppKey && user.pushoverUserKey) {
             const push = new Pushover({ user: user.pushoverUserKey, token: user.pushoverAppKey });
             push.send({
                 title: notificationTitle,
