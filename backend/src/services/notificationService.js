@@ -69,10 +69,10 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
             notificationTitle = `Warnung - Melder "${sensorName}" seit ${diffHours} Stunden offline.`;
             if (!messageText) messageText = `Seit ${diffHours} Stunden keine Statusmeldung von Melder "${sensorName}" empfangen.`;
         } else if (type === 'TEST') {
-            notificationTitle = 'CatchSensor: Test-Push';
+            notificationTitle = 'Test-Push';
             if (!messageText) messageText = 'Test-Benachrichtigung erfolgreich empfangen.';
         } else {
-            notificationTitle = 'CatchSensor: Info';
+            notificationTitle = 'Info';
             if (!messageText) messageText = `Status-Update für "${sensorName}".`;
         }
 
