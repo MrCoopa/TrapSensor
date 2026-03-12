@@ -296,6 +296,14 @@ const updateCatchSensorData = async (deviceId, data, io) => {
                         catchSensor.resyncRequired = true;
                         await catchSensor.save();
                         console.log(`MQTT: 🔄 Battery reset (fCnt 0) detected for ${deviceId}. Flagged for resync.`);
+                        
+                        // Notify user about resync requirement
+                        if (catchSensor.userId) {
+                            const user = await User.findByPk(catchSensor.userId);
+                            if (user) {
+                                await sendUnifiedNotification(user, catchSensor, 'RESYNC_REQUIRED');
+                            }
+                        }
                     } else {
                         console.log(`MQTT: 🛡️ Silently ignored low-counter replay for active sensor ${deviceId}.`);
                     }
