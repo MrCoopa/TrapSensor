@@ -1,4 +1,4 @@
-import { Battery, Signal, Users, CheckCheck } from 'lucide-react';
+import { Battery, Signal, Users, CheckCheck, RefreshCw } from 'lucide-react';
 import BatteryIndicator from './BatteryIndicator';
 import SignalIndicator from './SignalIndicator';
 import API_BASE from '../apiConfig';
@@ -11,7 +11,7 @@ const formatTimeAgo = (date) => {
     return 'Gestern';
 };
 
-const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge }) => {
+const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResync }) => {
     const isLoRa = catchSensor.type === 'LORAWAN';
     const status = catchSensor.status;
     const voltage = catchSensor.batteryVoltage; // mV
@@ -65,6 +65,22 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge }) => {
         }
     };
 
+    const handleResync = async (e) => {
+        e.stopPropagation();
+        if (!window.confirm('Haben Sie die Batterie gewechselt? Der Sicherheitszähler wird nun zurückgesetzt.')) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${API_BASE}/api/catches/${catchSensor.id}/resync`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok && onResync) onResync(catchSensor.id);
+        } catch (err) {
+            console.error('Resync failed:', err);
+        }
+    };
+
     return (
         <div
             onClick={() => onViewHistory(catchSensor)}
@@ -105,6 +121,17 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge }) => {
                 >
                     <CheckCheck size={14} />
                     {isAcknowledged ? 'Quittiert – keine weiteren Meldungen' : 'Alarm quittieren'}
+                </button>
+            )}
+
+            {/* BATTERY RESET button — Variant 1 Replay Protection */}
+            {catchSensor.resyncRequired && (
+                <button
+                    onClick={handleResync}
+                    className="mb-3 flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 bg-amber-500 text-white shadow-md shadow-amber-200 active:bg-amber-600"
+                >
+                    <RefreshCw size={14} />
+                    Batteriewechsel bestätigen
                 </button>
             )}
 

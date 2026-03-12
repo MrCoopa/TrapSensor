@@ -136,6 +136,12 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             const statusByte = dataBuffer.readUInt8(0);
             const voltage = dataBuffer.readUInt16BE(1);
             const rssi = dataBuffer.readUInt8(3);
+            
+            // Extract Counter from bytes 4-7 (UInt32BE) if payload is 16 bytes
+            let fCnt = 0;
+            if (dataBuffer.length >= 8) {
+                fCnt = dataBuffer.readUInt32BE(4);
+            }
 
             normalizedData = {
                 type: 'NB-IOT',
@@ -143,6 +149,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 batteryVoltage: voltage,
                 batteryPercent: voltageToBatteryPercent(voltage),
                 rssi: -rssi,
+                fCnt: fCnt,
                 lastReading: new Date()
             };
         } else if (pathType === 'LORAWAN') {
@@ -274,6 +281,30 @@ const updateCatchSensorData = async (deviceId, data, io) => {
         }
 
         if (data.type === 'NB-IOT') {
+            // Replay Protection Logic (Variant 1)
+            // If the device sent a counter, validate it.
+            if (data.fCnt !== undefined) {
+                if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt > 0) {
+                    console.warn(`MQTT: ❌ Replay/Old counter detected for ${deviceId}: received=${data.fCnt}, last=${catchSensor.lastFCnt}`);
+                    
+                    // If counter is significantly lower (e.g. 1 or 2), it's likely a battery reset.
+                    if (data.fCnt <= 5) {
+                        catchSensor.resyncRequired = true;
+                        await catchSensor.save();
+                        console.log(`MQTT: 🔄 Battery reset suspected for ${deviceId}. Flagged for resync.`);
+                    }
+                    return; // Reject the message
+                }
+                
+                // Check if resync is required and block until manual reset (Strict Variant 1)
+                if (catchSensor.resyncRequired) {
+                    console.warn(`MQTT: 🛑 Blocked message for ${deviceId} - Manual resync required.`);
+                    return;
+                }
+
+                catchSensor.lastFCnt = data.fCnt;
+            }
+
             catchSensor.imei = deviceId;
             catchSensor.status = data.status || 'active';
             catchSensor.batteryVoltage = data.batteryVoltage;

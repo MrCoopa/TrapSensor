@@ -147,6 +147,12 @@ const Dashboard = ({ onLogout }) => {
         ));
     };
 
+    const handleResync = (catchId) => {
+        setCatches(prev => prev.map(c =>
+            c.id === catchId ? { ...c, resyncRequired: false, lastFCnt: 0 } : c
+        ));
+    };
+
     if (loading) {
         return (
             <div className="flex justify-center items-center h-96">
@@ -190,6 +196,7 @@ const Dashboard = ({ onLogout }) => {
                                 isShared={c.userId !== currentUserId}
                                 onViewHistory={(t) => setSelectedCatch(t)}
                                 onAcknowledge={handleAcknowledge}
+                                onResync={handleResync}
                             />
                         ))}
                     </div>

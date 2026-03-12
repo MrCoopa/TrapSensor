@@ -218,6 +218,34 @@ router.post('/:id/acknowledge', async (req, res) => {
     }
 });
 
+// Resync counter (Variant 1) - Resets lastFCnt and clears resyncRequired flag
+router.post('/:id/resync', async (req, res) => {
+    try {
+        const catchSensor = await CatchSensor.findByPk(req.params.id);
+        if (!catchSensor) return res.status(404).json({ error: 'Melder nicht gefunden' });
+
+        const CatchShare = require('../models/CatchShare');
+        const hasAccess = catchSensor.userId === req.user.id ||
+            await CatchShare.findOne({ where: { catchSensorId: req.params.id, userId: req.user.id } });
+
+        if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+        await catchSensor.update({
+            lastFCnt: 0,
+            resyncRequired: false
+        });
+
+        if (catchSensor.userId) {
+            const updatedSensor = await catchSensor.reload();
+            req.io.to(`user_${catchSensor.userId}`).emit('catchSensorUpdate', updatedSensor);
+        }
+
+        res.json({ message: 'Zähler erfolgreich zurückgesetzt. Gerät ist wieder einsatzbereit.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 router.post('/:id/share', async (req, res) => {
     try {
@@ -312,24 +340,30 @@ const mqtt = require('mqtt');
 // Simulate MQTT data for a catch
 router.post('/simulate', async (req, res) => {
     try {
-        const { imei, status, batteryVoltage, rssi, jitter = true } = req.body;
+        const { imei, status, batteryVoltage, rssi, jitter = true, payload: customPayload } = req.body;
 
         if (!imei) return res.status(400).json({ error: 'IMEI ist erforderlich' });
 
-        const statusCode = status === 'triggered' ? 0x00 : 0x01;
+        let payload;
+        if (customPayload) {
+            // Use custom hex payload if provided (for testing encrypted packets)
+            payload = Buffer.from(customPayload, 'hex');
+        } else {
+            // Default 4-byte unencrypted payload
+            const statusCode = status === 'triggered' ? 0x00 : 0x01;
+            let voltage = parseInt(batteryVoltage) || 4200;
+            let rssiVal = Math.abs(parseInt(rssi)) || 60;
 
-        let voltage = parseInt(batteryVoltage) || 4200;
-        let rssiVal = Math.abs(parseInt(rssi)) || 60;
+            if (jitter) {
+                voltage += Math.floor(Math.random() * 21) - 10;
+                rssiVal += Math.floor(Math.random() * 5) - 2;
+            }
 
-        if (jitter) {
-            voltage += Math.floor(Math.random() * 21) - 10;
-            rssiVal += Math.floor(Math.random() * 5) - 2;
+            payload = Buffer.alloc(4);
+            payload.writeUInt8(statusCode, 0);
+            payload.writeUInt16BE(voltage, 1);
+            payload.writeUInt8(rssiVal, 3);
         }
-
-        const payload = Buffer.alloc(4);
-        payload.writeUInt8(statusCode, 0);
-        payload.writeUInt16BE(voltage, 1);
-        payload.writeUInt8(rssiVal, 3);
 
         const topic = `catches/${imei}/data`;
 
@@ -346,7 +380,7 @@ router.post('/simulate', async (req, res) => {
             res.json({
                 message: 'Simulation (Direct) gesendet',
                 topic,
-                data: { status, voltage, rssi: -rssiVal },
+                data: customPayload ? { type: 'custom' } : { status, voltage, rssi: -rssi },
                 payload: payload.toString('hex')
             });
         });

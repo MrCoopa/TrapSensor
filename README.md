@@ -93,10 +93,14 @@ Die App ist unter `http://localhost:5000` erreichbar.
 
 ### 1. MQTT Ingress (Sensordaten)
 - **Topic**: `catches/{imei}/data`
-- **Payload (Binary 4-Bytes)**:
+- **Payload (NB-IoT)**:
+    - **Verschlüsselt (Standard)**: 16-Byte AES-256 Block (32 Hex-Zeichen).
+    - **Unverschlüsselt**: 4-Byte Binary (8 Hex-Zeichen).
+- **Datenstruktur (innerhalb des Blocks)**:
     - Byte 0: `Status` (0x01=Ok, 0x00=Alarm)
     - Byte 1-2: `Voltage` (mV, UInt16BE)
     - Byte 3: `RSSI` (Absoluter Wert)
+    - Byte 4-7: **Message Counter (FCnt)** (UInt32BE) - *Nur bei Verschlüsselung.*
 
 ### 2. REST API (Backend)
 | Endpoint | Method | Description |
@@ -104,7 +108,8 @@ Die App ist unter `http://localhost:5000` erreichbar.
 | `/api/auth/login` | `POST` | Authentifizierung & JWT Erhalt. |
 | `/api/catches` | `GET` | Liste aller eigenen/geteilten Fallen. |
 | `/api/catches/:id/share` | `POST` | Falle mit anderem Nutzer teilen. |
-| `/api/readings/:id` | `GET` | Historische Messwerte abrufen. |
+| `/api/catches/:id/acknowledge` | `POST` | Aktuellen Alarm quittieren. |
+| `/api/catches/:id/resync` | `POST` | Sicherheitszähler nach Batteriewechsel zurücksetzen. |
 
 ### 3. Real-Time (WebSockets)
 Das Frontend nutzt **Socket.IO**, um Statusänderungen (z.B. Falle ausgelöst) in Millisekunden anzuzeigen, ohne die Seite neu zu laden.
@@ -133,8 +138,23 @@ CatchSensor unterstützt drei Kanäle:
 
 ---
 
-## 🔐 Security (AES-256)
-Jeder Sensor verschlüsselt seine Payload mit einem individuellen Schlüssel via **AES-256-CBC**. Das Backend entschlüsselt diese Daten erst nach dem Empfang. Dies verhindert "Man-in-the-Middle"-Angriffe über offene MQTT-Broker.
+## 🔐 Security (AES-256 & Replay Protection)
+
+CatchSensor nutzt eine mehrstufige Sicherheitsarchitektur, um Manipulationen und Daten-Einsicht zu verhindern:
+
+### 1. Ende-zu-Ende Verschlüsselung (E2EE)
+Jeder Sensor verschlüswelt seine Daten mit **AES-256 (ECB Mode)**. Der Schlüssel (`AES_KEY`) ist nur auf dem Gerät und dem Backend bekannt. 
+- **Vorteil**: Selbst bei Zugriff auf den MQTT-Broker sind die Daten für Dritte unlesbar ("Datensalat").
+
+### 2. Replay Protection via Message Counter (FCnt)
+Um das Abfangen und Wiederholen (Replay) von Nachrichten zu verhindern, enthält jedes Paket einen **monoton steigenden 4-Byte Zähler**.
+- **Logik**: Das Backend akzeptiert nur Nachrichten, deren Zähler (`FCnt`) größer ist als der letzte gespeicherte Wert.
+- **Persistence**: Der Zähler wird auf dem Gerät in den **STM32 Backup-Registern** gespeichert. Er überlebt den Deep Sleep, ohne den Flash-Speicher zu verschleißen.
+
+### 3. Battery Reset Handling (Manual Resync)
+Wenn die Batterie gewechselt wird, startet der Zähler im Gerät wieder bei `0`. 
+- **Verfahren**: Das Backend erkennt den Zähler-Sprung und blockiert den Zugriff (Flag: `resyncRequired`). 
+- **Lösung**: Der Nutzer muss den Batteriewechsel im Dashboard manuell bestätigen (Endpoint: `/api/catches/:id/resync`), um den Zähler im Backend zurückzusetzen.
 
 ---
 

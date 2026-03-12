@@ -81,6 +81,16 @@ const CatchSensor = sequelize.define('CatchSensor', {
         type: DataTypes.STRING,
         allowNull: true,
         comment: 'Optional Revierwelt Webhook URL'
+    },
+    lastFCnt: {
+        type: DataTypes.INTEGER,
+        defaultValue: 0,
+        comment: 'Last received message counter for replay protection'
+    },
+    resyncRequired: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        comment: 'Set when a lower counter is detected (potential battery reset)'
     }
 }, {
     tableName: 'CatchSensors',

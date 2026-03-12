@@ -3,9 +3,31 @@
 #include "sim7020_mqtt.h"
 #include "aes256.h"
 
+#ifdef ARDUINO_ARCH_STM32
+#include <STM32RTC.h>
+STM32RTC& rtc = STM32RTC::getInstance();
+#endif
+
 // State variables
 volatile bool sensorTriggered = false;
 unsigned long lastKeepAlive = 0;
+
+// Replay Protection: Persistence via Backup Registers
+// BKP Register 0 is used for the counter. Value is preserved during Stop mode.
+uint32_t getMessageCounter() {
+#ifdef ARDUINO_ARCH_STM32
+    return HAL_RTCEx_BKPRRead(&rtc.getHandle(), RTC_BKP_DR0);
+#else
+    return 0; // Fallback for simulation
+#endif
+}
+
+void incrementMessageCounter() {
+#ifdef ARDUINO_ARCH_STM32
+    uint32_t current = getMessageCounter();
+    HAL_RTCEx_BKPRWrite(&rtc.getHandle(), RTC_BKP_DR0, current + 1);
+#endif
+}
 
 // Interrupt Service Routine for Reed Sensor
 void IRAM_ATTR handleReedInterrupt() {
@@ -13,8 +35,6 @@ void IRAM_ATTR handleReedInterrupt() {
 }
 
 uint16_t readBatteryVoltage() {
-    // ADC reference is usually 3.3V or calibrated VREF
-    // Assuming 100k/100k voltage divider (multiply reading by 2)
     int raw = analogRead(PIN_ADC_BATT);
     float voltage = (raw * 3.3 / 1024.0) * 2.0; 
     return (uint16_t)(voltage * 1000); // return in mV
@@ -23,6 +43,10 @@ uint16_t readBatteryVoltage() {
 void setup() {
     Serial.begin(115200);
     SIM_SERIAL.begin(115200);
+
+#ifdef ARDUINO_ARCH_STM32
+    rtc.begin(); // Required to access backup registers
+#endif
 
     pinMode(PIN_REED, INPUT_PULLUP);
     pinMode(PIN_ADC_BATT, INPUT);
@@ -58,15 +82,24 @@ void loop() {
 
         // 3. Encrypt Payload if enabled
         char payloadHex[33]; // Max 32 chars + null
-        int payloadLen = 8;  // Default 4 bytes = 8 hex chars
+        int payloadLen = 8; 
 
         if (USE_AES) {
+            uint32_t counter = getMessageCounter();
+            incrementMessageCounter();
+            Serial.print("AES: Encrypting with FCnt: "); Serial.println(counter);
+
             uint8_t block[16] = {0};
             block[0] = status;
             block[1] = (voltageMv >> 8) & 0xFF;
             block[2] = voltageMv & 0xFF;
             block[3] = rssiAbs;
-            // Rest of block is 0 (padding)
+            
+            // Message Counter (FCnt) in Bytes 4-7 (UInt32BE)
+            block[4] = (counter >> 24) & 0xFF;
+            block[5] = (counter >> 16) & 0xFF;
+            block[6] = (counter >> 8) & 0xFF;
+            block[7] = counter & 0xFF;
 
             aes256_encrypt(block, (const uint8_t*)AES_KEY);
             
@@ -95,11 +128,7 @@ void loop() {
         sim7020_powerDown(PIN_SIM_PWR);
     }
 
-    // 5. Enter Deep Sleep (Stop Mode)
-    // In Arduino/STM32 we typically use LowPower library for this
     Serial.println("Entering Deep Sleep...");
     Serial.flush();
-    
-    // LowPower.stop(); // This would be the actual call with a library like STM32LowPower
-    delay(1000); // Placeholder for simulation
+    delay(1000); 
 }
