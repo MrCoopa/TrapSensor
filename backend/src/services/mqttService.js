@@ -136,7 +136,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             const statusByte = dataBuffer.readUInt8(0);
             const voltage = dataBuffer.readUInt16BE(1);
             const rssi = dataBuffer.readUInt8(3);
-            
+
             // Extract Counter from bytes 4-7 (UInt32BE) if payload is 16 bytes
             let fCnt = 0;
             if (dataBuffer.length >= 8) {
@@ -286,24 +286,22 @@ const updateCatchSensorData = async (deviceId, data, io) => {
             if (data.fCnt !== undefined) {
                 if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt > 0) {
                     console.warn(`MQTT: ❌ Replay/Old counter detected for ${deviceId}: received=${data.fCnt}, last=${catchSensor.lastFCnt}`);
-                    
+
                     // If counter is significantly lower (e.g. 1 or 2), it's likely a battery reset.
                     // REFINEMENT: Only trigger resync if the sensor was inactive for at least 15 minutes.
                     // This prevents an attacker from interrupting an active session with an old replay.
-                    const now = new Date();
-                    const lastSeen = catchSensor.lastSeen ? new Date(catchSensor.lastSeen) : new Date(0);
-                    const minutesSinceLastSeen = (now - lastSeen) / 1000 / 60;
-
-                    if (data.fCnt <= 5 && minutesSinceLastSeen > 15) {
+                    // If counter is exactly 0, it is a definitive battery reset signal.
+                    // We flag it for resync, and a valid high-counter message will "self-heal" the flag.
+                    if (data.fCnt === 0) {
                         catchSensor.resyncRequired = true;
                         await catchSensor.save();
-                        console.log(`MQTT: 🔄 Battery reset suspected for ${deviceId} (Inactive for ${Math.round(minutesSinceLastSeen)} min). Flagged for resync.`);
+                        console.log(`MQTT: 🔄 Battery reset (fCnt 0) detected for ${deviceId}. Flagged for resync.`);
                     } else {
                         console.log(`MQTT: 🛡️ Silently ignored low-counter replay for active sensor ${deviceId}.`);
                     }
                     return; // Reject the message
                 }
-                
+
                 // Check if resync is required and block until manual reset (Strict Variant 1)
                 if (catchSensor.resyncRequired) {
                     console.warn(`MQTT: 🛑 Blocked message for ${deviceId} - Manual resync required.`);
