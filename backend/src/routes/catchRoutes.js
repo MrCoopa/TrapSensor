@@ -231,7 +231,7 @@ router.post('/:id/resync', async (req, res) => {
         if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
 
         await catchSensor.update({
-            lastFCnt: 0,
+            lastFCnt: -1,
             resyncRequired: false
         });
 

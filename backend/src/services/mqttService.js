@@ -284,7 +284,7 @@ const updateCatchSensorData = async (deviceId, data, io) => {
             // Replay Protection Logic (Variant 1)
             // If the device sent a counter, validate it.
             if (data.fCnt !== undefined) {
-                if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt > 0) {
+                if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt >= 0) {
                     console.warn(`MQTT: ❌ Replay/Old counter detected for ${deviceId}: received=${data.fCnt}, last=${catchSensor.lastFCnt}`);
 
                     // If counter is significantly lower (e.g. 1 or 2), it's likely a battery reset.
