@@ -98,7 +98,7 @@ const connectToBroker = (config, onMessage) => {
 
 const crypto = require('crypto');
 
-const lastPayloads = new Map(); // Simple in-memory cache for DDoS prevention (IMEI -> lastPayloadHex)
+const lastPayloads = new Map(); // Cache for DDoS prevention: IMEI -> { payloadHex, count, firstSeen }
 
 const handleMQTTMessage = async (topic, payload, io, pathType) => {
     try {
@@ -106,18 +106,32 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
         let deviceId = null;
 
         if (pathType === 'NB-IOT') {
-            // Path A: NB-IoT Binary (4 Bytes or 16 Bytes Encrypted)
-            // Payload format: [Status (1), Voltage (2), RSSI (1)]
             deviceId = topic.split('/')[1];
             const payloadHex = payload.toString().toUpperCase();
 
-            // DDoS Protection: If the payload is identical to the last one, reject BEFORE decryption.
-            // Since the fCnt changes every message, the encrypted block MUST change too.
-            if (lastPayloads.get(deviceId) === payloadHex) {
-                console.warn(`MQTT: 🛡️ DDoS/Flooding detected for ${deviceId}. Rejected identical payload.`);
+            // DDoS/Flooding Protection: Track repetitions within 24h
+            const cacheEntry = lastPayloads.get(deviceId);
+            const now = Date.now();
+
+            if (cacheEntry && cacheEntry.payloadHex === payloadHex) {
+                cacheEntry.count++;
+                const timeDiff = now - cacheEntry.firstSeen;
+                
+                // If more than 3 identical packets within 24 hours
+                if (cacheEntry.count > 3 && timeDiff < 24 * 60 * 60 * 1000) {
+                    console.error(`MQTT: ⚠️ KRITISCH: Melder ${deviceId} wird geflutet! Identisches Paket bereits ${cacheEntry.count}x innerhalb von 24h empfangen.`);
+                } else {
+                    console.warn(`MQTT: 🛡️ DDoS protection for ${deviceId}. Rejected identical payload.`);
+                }
                 return;
             }
-            lastPayloads.set(deviceId, payloadHex);
+            
+            // New or different payload: Reset/Update cache entry
+            lastPayloads.set(deviceId, { 
+                payloadHex, 
+                count: 1, 
+                firstSeen: now 
+            });
 
             let dataBuffer = payload;
 
