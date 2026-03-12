@@ -115,9 +115,15 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
             if (cacheEntry && cacheEntry.payloadHex === payloadHex) {
                 cacheEntry.count++;
-                const timeDiff = now - cacheEntry.firstSeen;
                 
-                // If more than 3 identical packets within 24 hours
+                // Start the 24h window only at the first REPETITION (i.e. second identical packet)
+                if (cacheEntry.count === 2) {
+                    cacheEntry.firstRepetitionAt = now;
+                }
+
+                const timeDiff = cacheEntry.firstRepetitionAt ? (now - cacheEntry.firstRepetitionAt) : 0;
+                
+                // If more than 3 identical packets (1 original + 3 reps) within 24 hours of the first rep
                 if (cacheEntry.count > 3 && timeDiff < 24 * 60 * 60 * 1000) {
                     console.error(`MQTT: ⚠️ KRITISCH: Melder ${deviceId} wird geflutet! Identisches Paket bereits ${cacheEntry.count}x innerhalb von 24h empfangen.`);
                 } else {
@@ -126,11 +132,11 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 return;
             }
             
-            // New or different payload: Reset/Update cache entry
+            // New or different payload: Reset cache entry
             lastPayloads.set(deviceId, { 
                 payloadHex, 
                 count: 1, 
-                firstSeen: now 
+                firstRepetitionAt: null 
             });
 
             let dataBuffer = payload;
