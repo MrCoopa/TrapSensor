@@ -98,6 +98,8 @@ const connectToBroker = (config, onMessage) => {
 
 const crypto = require('crypto');
 
+const lastPayloads = new Map(); // Simple in-memory cache for DDoS prevention (IMEI -> lastPayloadHex)
+
 const handleMQTTMessage = async (topic, payload, io, pathType) => {
     try {
         let normalizedData = null;
@@ -107,11 +109,19 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             // Path A: NB-IoT Binary (4 Bytes or 16 Bytes Encrypted)
             // Payload format: [Status (1), Voltage (2), RSSI (1)]
             deviceId = topic.split('/')[1];
+            const payloadHex = payload.toString().toUpperCase();
+
+            // DDoS Protection: If the payload is identical to the last one, reject BEFORE decryption.
+            // Since the fCnt changes every message, the encrypted block MUST change too.
+            if (lastPayloads.get(deviceId) === payloadHex) {
+                console.warn(`MQTT: 🛡️ DDoS/Flooding detected for ${deviceId}. Rejected identical payload.`);
+                return;
+            }
+            lastPayloads.set(deviceId, payloadHex);
+
             let dataBuffer = payload;
 
             // Auto-Detect AES (32 chars hex = 16 bytes binary)
-            // Note: The SIM7020E sends HEX-ASCII over MQTT if we used our last firmware update.
-            // If the buffer length is 32, it's a hex string of 16-byte encrypted block.
             if (payload.length === 32 && process.env.AES_SECRET_KEY && process.env.AES_SECRET_KEY.length === 32) {
                 try {
                     const encrypted = Buffer.from(payload.toString(), 'hex');
