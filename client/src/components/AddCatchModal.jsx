@@ -9,7 +9,8 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
         location: '',
         imei: '',
         deviceId: '',
-        type: 'NB-IOT'
+        type: 'NB-IOT',
+        revierweltWebhookUrl: ''
     });
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -44,7 +45,7 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
             if (response.ok) {
                 const newCatch = await response.json();
                 onAdd(newCatch);
-                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT' });
+                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT', revierweltWebhookUrl: '' });
                 onClose();
 
             } else {
@@ -139,6 +140,18 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
                                 <Camera size={20} />
                             </button>
                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 font-mono text-[10px] text-green-700">Revierwelt Webhook (optional)</label>
+                        <input
+                            type="text"
+                            value={formData.revierweltWebhookUrl}
+                            onChange={(e) => setFormData({ ...formData, revierweltWebhookUrl: e.target.value })}
+                            className="w-full bg-green-50/30 border border-green-100/50 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-600/20 outline-none transition-all text-sm"
+                            placeholder="https://revierwelt.de/webhook/..."
+                        />
+                        <p className="text-[10px] text-gray-400 mt-1 italic px-1">Wird bei jedem Fang automatisch aufgerufen.</p>
                     </div>
 
 

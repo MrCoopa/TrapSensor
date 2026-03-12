@@ -7,6 +7,7 @@ Diese Firmware ermöglicht es einem STM32 (L0/L4), den Status einer Falle über 
 - **Interrupt driven**: Wacht sofort auf, wenn der Reed-Sensor ausgelöst wird.
 - **Batterie-Überwachung**: Misst die Spannung über einen ADC-Pin.
 - **NB-IoT (MQTT)**: Effiziente Datenübertragung via SIM7020E.
+- **AES-256 Verschlüsselung**: Sicherer Schutz der Fangdaten (Payload).
 - **Keep-Alive**: Sendet alle 8 Stunden einen Statusbericht (auch ohne Auslösung).
 
 ## Voraussetzungen

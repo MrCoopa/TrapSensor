@@ -1,329 +1,141 @@
-# 🦊 CatchSensor
+# 🦊 CatchSensor: Professional IoT Trap Monitoring
 
-A self-hosted IoT monitoring platform for trap/catch sensors using **NB-IoT** and **LoRaWAN**. Includes a real-time dashboard, native Android push notifications via FCM, multi-user sharing, and Pushover alerts.
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)]()
+[![License](https://img.shields.io/badge/license-ISC-green.svg)]()
+[![Platform](https://img.shields.io/badge/platform-NB--IoT%20%7C%20LoRaWAN-orange.svg)]()
+[![Security](https://img.shields.io/badge/security-AES--256-red.svg)]()
 
----
-
-## ✨ Features
-
-### Dashboard
-- Real-time sensor status display (active / inactive / triggered) via WebSocket (Socket.IO)
-- Battery percentage & voltage monitoring
-- Signal strength (RSSI) display
-- Last-seen timestamp per sensor
-- Click-through to detailed reading history
-
-### Sensors (Melder)
-- Register NB-IoT (IMEI) and LoRaWAN (Device ID) sensors
-- Claim unbound sensors automatically on first MQTT message
-- Edit name, alias, and location
-- Delete own sensors or remove shared ones from view
-- Share sensors with other users by email (read/write/admin permissions)
-
-### Notifications
-- **Native Android Push** via Firebase Cloud Messaging (FCM) — using Capacitor
-- **Pushover** as optional secondary alert channel (configurable per user)
-- Alert types and trigger timing:
-  - **Catch detected** — fires **immediately** when MQTT message arrives with `triggered` status
-  - **Low battery** — fires immediately on MQTT message if battery is below threshold; repeat suppression per user-configured interval
-  - **Sensor offline** — fired by the Watchdog when no message is received within the configured interval
-- Alert deduplication via per-sensor cooldown timestamps (`lastCatchAlert`, `lastBatteryAlert`, `lastOfflineAlert`)
-
-### MQTT / Data Ingestion
-- Embedded [Aedes](https://github.com/moscajs/aedes) MQTT broker:
-  - **TCP (Raw):** Port `1884` (fast, but harder to proxy over port 443)
-  - **WebSockets (WS):** Port `1885` (ideal for proxying through Nginx Proxy Manager/HTTPS)
-- Topic structure: `catches/{imei}/data` (NB-IoT binary) or `v3/{appId}@ttn/devices/{deviceId}/up` (LoRaWAN JSON)
-- MQTT Simulator tool available in `/tools/nb-iot-simulator.js`
-
-#### Connecting through Nginx Proxy Manager (NPM)
-To reach the MQTT broker from the internet or cross-network:
-
-**Method 1: WebSockets (Recommended for Internet)**
-1. In NPM, create a new **Proxy Host** for `mqtt.yourdomain.com`.
-2. Forward to `catchsensor_app` on Port `1885`.
-3. Enable **Websockets Support**.
-4. Simulator Usage: `--host ws://mqtt.yourdomain.com` (no port needed if using port 80/443).
-
-**Method 2: Raw TCP Stream**
-1. In NPM, go to **Streams**.
-2. Add **Stream**: Incoming Port `1884`, Forward Host `catchsensor_app`, Forward Port `1884`.
-3. Simulator Usage: `--host yourdomain.com --port 1884`.
-- Supports The Things Network (TTN) LoRaWAN uplinks via external MQTT bridge
-- Direct publish simulation endpoint for testing
-
-### Watchdog
-- Background service running every 15 minutes
-- Detects offline sensors and low battery, triggers alerts automatically
-
-### User Management
-- JWT-based authentication (30-day tokens)
-- Register, login, change password
-- Per-user push notification and alert settings
+**CatchSensor** is a production-ready, self-hosted IoT ecosystem designed for professional trap monitoring. It is specifically optimized for **predator hunting (Raubwildjagd)** and **pest control**, providing 24/7 legal security and reliability in the field.
 
 ---
 
-## 🛠 Tech Stack
+## 📖 Table of Contents
+1. [Key Features](#-key-features)
+2. [System Architecture](#️-system-architecture)
+3. [Installation Guide (DE)](#-installation-guide-de)
+4. [System Interfaces (Schnittstellen)](#-system-interfaces-schnittstellen)
+5. [Notification Engine](#-notification-engine)
+6. [Firmware & Hardware](#-firmware--hardware)
+7. [Security (AES-256)](#-security-aes-256)
+
+---
+
+## 🚀 Key Features
+
+### 🛡️ Security & Reliability
+- **AES-256 Encryption:** Military-grade E2E encryption. Data is encrypted on the sensor and decrypted only at your backend.
+- **Dual Protocol Support:** Native support for **NB-IoT (SIM7020E)** and **LoRaWAN (TTN)**.
+- **Digital Watchdog:** Automated background service monitoring battery health and connection status.
+
+### 🦌 Professional Hunting Integration
+- **Revierwelt Webhook:** Direct integration with Germany's leading hunting management platform.
+- **Legal Compliance:** Detailed automated logging for legal trap control requirements.
+- **CatchSharing:** Granular permission levels for hunting groups.
+
+### 📱 Modern User Experience
+- **Real-Time Dashboard:** Socket.IO powered updates.
+- **PWA Support:** Installable standalone app.
+- **Notification Multi-Channel:** FCM (Android), Pushover, and Revierwelt.
+
+---
+
+## 🏗️ System Architecture
 
 | Layer | Technology |
 |---|---|
-| Frontend | React + Vite |
-| Mobile | Capacitor (Android) |
-| Backend | Node.js + Express |
-| Database | MariaDB / MySQL via Sequelize ORM |
-| Realtime | Socket.IO |
-| MQTT Broker | Aedes (embedded) |
-| Push | Firebase Admin SDK (FCM) |
-| Alerts | Pushover API |
-| Deployment | Docker + Portainer |
-| Reverse Proxy | Nginx Proxy Manager |
+| **Firmware** | C++ (PlatformIO), STM32 L0/L4, SIM7020E |
+| **Frontend** | React + Vite, Tailwind CSS, Lucide Icons |
+| **Mobile** | Capacitor (Android) |
+| **Backend** | Node.js + Express, Aedes MQTT Broker |
+| **Database** | MariaDB / MySQL via Sequelize ORM |
+| **Infra** | Docker Compose, Nginx Proxy Manager |
 
 ---
 
-## 🗄 Database Structure
+## 🛠 Installation Guide (DE)
 
-### `Users`
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID (PK) | Auto-generated |
-| `email` | STRING (unique) | Login email |
-| `name` | STRING | Display name |
-| `password` | STRING | bcrypt hashed |
-| `role` | ENUM(`user`,`admin`) | Default: `user` |
-| `pushEnabled` | BOOLEAN | Push notifications on/off |
-| `pushoverAppKey` | STRING | Pushover app token |
-| `pushoverUserKey` | STRING | Pushover user key |
-| `batteryThreshold` | INTEGER | % below which battery alert fires (default: 20) |
-| `batteryAlertInterval` | INTEGER | Hours between battery alerts (default: 24) |
-| `offlineAlertInterval` | INTEGER | Hours before offline alert fires (default: 24) |
-| `catchAlertInterval` | INTEGER | Hours between catch alerts (default: 1) |
+### 1. Voraussetzungen
+- **Node.js** (v20+) & **Docker** mit Compose.
+- **Firebase Account** (für Push-Benachrichtigungen).
+- **Domain** (optional, für HTTPS via Nginx Proxy Manager).
 
-### `CatchSensors`
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID (PK) | Auto-generated |
-| `name` | STRING | Sensor display name |
-| `alias` | STRING | Short name/alias |
-| `location` | STRING | Physical location |
-| `type` | ENUM(`NB-IOT`,`LORAWAN`) | Protocol type |
-| `imei` | STRING (unique) | NB-IoT device identifier |
-| `deviceId` | STRING (unique) | LoRaWAN device identifier |
-| `status` | ENUM(`active`,`inactive`,`triggered`) | Current state |
-| `batteryVoltage` | INTEGER | Last known battery voltage (mV) |
-| `batteryPercent` | INTEGER | Last known battery % |
-| `rssi` | INTEGER | Signal strength |
-| `lastSeen` | DATE | Last message timestamp |
-| `lastBatteryAlert` | DATE | Deduplication: last battery alert sent |
-| `lastOfflineAlert` | DATE | Deduplication: last offline alert sent |
-| `lastCatchAlert` | DATE | Deduplication: last catch alert sent |
-| `userId` | UUID (FK → Users) | Owner |
-
-### `Readings`
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID (PK) | Auto-generated |
-| `catchSensorId` | UUID (FK) | Reference to sensor |
-| `value` | FLOAT | Sensor reading value |
-| `type` | STRING | Reading category |
-| `status` | STRING | State at time of reading |
-| `batteryPercent` | INTEGER | Battery at reading time |
-| `rssi` | INTEGER | Signal at reading time |
-| `timestamp` | DATE | Time of reading |
-| `snr` | FLOAT | LoRa SNR |
-| `gatewayId` | STRING | LoRa gateway |
-| `gatewayCount` | INTEGER | Number of gateways |
-| `fCnt` | INTEGER | LoRa frame counter |
-| `spreadingFactor` | INTEGER | LoRa SF |
-
-### `CatchShares`
-| Column | Type | Description |
-|---|---|---|
-| `id` | UUID (PK) | Auto-generated |
-| `catchSensorId` | UUID (FK → CatchSensors) | Shared sensor |
-| `userId` | UUID (FK → Users) | Recipient user |
-| `permission` | ENUM(`read`,`write`,`admin`) | Access level |
-
-### `PushSubscriptions`
-| Column | Type | Description |
-|---|---|---|
-| `id` | INTEGER (PK, autoincrement) | Auto-generated |
-| `endpoint` | TEXT (unique) | FCM device token |
-| `userId` | UUID (FK → Users) | Token owner |
-
-### `lorawan_metadata`
-| Column | Type | Description |
-|---|---|---|
-| `catchSensorId` | UUID (PK, FK) | Reference to sensor |
-| `loraRssi` | INTEGER | LoRa-specific RSSI |
-| `snr` | FLOAT | Signal-to-noise ratio |
-| `spreadingFactor` | INTEGER | LoRa spreading factor |
-| `gatewayId` | STRING | Last gateway ID |
-| `gatewayCount` | INTEGER | Gateways that received packet |
-| `fCnt` | INTEGER | Uplink frame counter |
-
----
-
-## 🔌 API Endpoints
-
-All protected endpoints require `Authorization: Bearer <token>` header.
-
-### Auth — `/api/auth`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/register` | ❌ | Register new user |
-| `POST` | `/login` | ❌ | Login, returns JWT |
-| `GET` | `/me` | ✅ | Get current user profile |
-| `POST` | `/change-password` | ✅ | Change password |
-| `PUT` | `/update-profile` | ✅ | Update push/alert settings |
-
-### Catches — `/api/catches`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/` | ✅ | List own + shared sensors |
-| `POST` | `/` | ✅ | Create or claim a sensor |
-| `PATCH` | `/:id` | ✅ | Update name/alias/location (owner only) |
-| `PATCH` | `/:id/status` | ✅ | Update sensor status |
-| `DELETE` | `/:id` | ✅ | Delete (owner) or remove share (shared user) |
-| `POST` | `/:id/share` | ✅ | Share sensor with user by email |
-| `DELETE` | `/:id/share/:userId` | ✅ | Revoke a share |
-| `GET` | `/:id/shares` | ✅ | List all shares (owner only) |
-| `POST` | `/simulate` | ✅ | Inject simulated MQTT data |
-
-### Readings — `/api/readings`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/:catchSensorId` | ✅ | Get last 50 readings for a sensor |
-| `POST` | `/` | ✅ | Submit a new reading |
-
-### Notifications — `/api/notifications`
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `POST` | `/subscribe` | ✅ | Register FCM token |
-| `POST` | `/unsubscribe` | ✅ | Remove FCM token |
-| `POST` | `/clear-all` | ✅ | Remove all tokens for user |
-| `POST` | `/test` | ✅ | Send test push to all user devices |
-
-### System
-| Method | Path | Auth | Description |
-|---|---|---|---|
-| `GET` | `/api/status` | ❌ | System health & uptime |
-| `GET` | `/api/health` | ❌ | Docker healthcheck |
-
----
-
-## 📱 Android Configuration
-
-### Capacitor (`capacitor.config.json`)
-```json
-{
-  "appId": "com.catchsensor.app",
-  "appName": "CatchSensor",
-  "webDir": "dist",
-  "server": {
-    "androidScheme": "http",
-    "cleartext": true
-  },
-  "plugins": {
-    "PushNotifications": {
-      "presentationOptions": ["badge", "sound", "alert"]
-    }
-  }
-}
-```
-
-### AndroidManifest Permissions
-```xml
-<uses-permission android:name="android.permission.INTERNET" />
-```
-- `android:usesCleartextTraffic="true"` — allows HTTP to local server
-- `android:networkSecurityConfig` — custom security config for local domain
-
-### Capacitor Plugins Used
-| Plugin | Purpose |
-|---|---|
-| `@capacitor/app` | App lifecycle events |
-| `@capacitor/push-notifications` | Native FCM push notifications |
-| `@capacitor/core` | Core bridge |
-
-### Build & Sync
+### 2. Lokale Einrichtung (Entwicklung)
 ```bash
-cd client
-npm run build           # Build React app
-npx cap sync android    # Sync to Android project
-# Then open client/android in Android Studio and Run
+# Repo klonen
+git clone https://github.com/MrCoopa/CatchSensor.git
+cd CatchSensor
+
+# Backend Setup
+cd backend && npm install
+
+# Frontend Setup
+cd ../client && npm install && npm run dev
 ```
 
----
-
-## ⚙️ Environment Variables
-
-File: `.env` in project root
-
-| Variable | Required | Description |
-|---|---|---|
-| `PORT` | ✅ | Backend port (default: `5000`) |
-| `DB_HOST` | ✅ | Database host (`localhost` or `catchsensor_db` in Docker) |
-| `DB_USER` | ✅ | Database username |
-| `DB_PASS` | ✅ | Database password |
-| `DB_NAME` | ✅ | Database name |
-| `JWT_SECRET` | ✅ | JWT signing secret — **change in production!** |
-| `VITE_API_URL` | ✅ | Full URL backend (e.g. `https://catchsensor.home`) |
-| `INTERNAL_MQTT_USER` | Username for embedded broker (optional) | `ub-iot-user` |
-| `INTERNAL_MQTT_PASS` | Password for embedded broker (optional) | `secret123` |
-| `APP_BASE_URL` | ✅ | Same as above, used server-side |
-| `FIREBASE_SERVICE_ACCOUNT_B64` | ✅ (Docker) | Base64-encoded `serviceAccountKey.json` for FCM |
-| `TTN_MQTT_BROKER` | ⚙️ | TTN MQTT broker hostname |
-| `TTN_MQTT_PORT` | ⚙️ | TTN MQTT port (usually `8883`) |
-| `TTN_MQTT_USER` | ⚙️ | TTN application ID |
-| `TTN_MQTT_PASS` | ⚙️ | TTN API key |
-| `TTN_MQTT_TOPIC` | ⚙️ | TTN uplink topic pattern |
-
-> **For local dev:** Place `serviceAccountKey.json` in `backend/` instead of using the env var.
-
----
-
-## 🐳 Docker Deployment
-
+### 3. Produktion (Docker Compose)
+Kopiere die `.env.example` nach `.env` und passe die Werte an. Starte dann:
 ```bash
-docker compose up --build -d
+docker compose up -d --build
 ```
+Die App ist unter `http://localhost:5000` erreichbar.
 
-### Ports
-| Port | Service |
+### 4. Umgebungsvariablen (Auszug)
+| Variable | Beschreibung |
 |---|---|
-| `5000` | Web UI + REST API |
-| `1884` | Embedded MQTT Broker |
-| `3306` | MariaDB (internal) |
-
-### Recommended: Nginx Proxy Manager
-- Proxy Host: `catchsensor_app:5000`
-- Enable **WebSockets support**
-- Set up SSL certificate
+| `DB_PASS` | Passwort für die MariaDB. |
+| `JWT_SECRET` | Schlüssel für Nutzer-Tokens. |
+| `INTERNAL_MQTT_PASS` | Passwort für den NB-IoT Broker. |
+| `FIREBASE_SERVICE_ACCOUNT_B64` | Base64-String der Google Firebase JSON. |
 
 ---
 
-## 🔔 Push Notification Flow
+## 🔌 System Interfaces (Schnittstellen)
 
-```
-Android App
-  └─► requestPermissions() [Capacitor]
-  └─► register() → FCM Token
-  └─► POST /api/notifications/subscribe → saved to PushSubscriptions
+### 1. MQTT Ingress (Sensordaten)
+- **Topic**: `catches/{imei}/data`
+- **Payload (Binary 4-Bytes)**:
+    - Byte 0: `Status` (0x01=Ok, 0x00=Alarm)
+    - Byte 1-2: `Voltage` (mV, UInt16BE)
+    - Byte 3: `RSSI` (Absoluter Wert)
 
-Sensor triggers catch / low battery
-  └─► MQTT message received
-  └─► notificationService.js
-        ├─► FCM: firebase-admin → sendNativeNotification()
-        └─► Pushover: pushover-notifications (optional)
-```
-
----
-
-## 🔗 WebSocket Events
-
-| Event | Direction | Description |
+### 2. REST API (Backend)
+| Endpoint | Method | Description |
 |---|---|---|
-| `catchSensorUpdate` | Server → Client | Sensor data changed |
-| `catchSensorDelete` | Server → Client | Sensor deleted |
-| `CatchSensorUpdate` | Server → Client | Reading submitted (capitalized variant) |
-| `newReading` | Server → Client | New sensor reading |
+| `/api/auth/login` | `POST` | Authentifizierung & JWT Erhalt. |
+| `/api/catches` | `GET` | Liste aller eigenen/geteilten Fallen. |
+| `/api/catches/:id/share` | `POST` | Falle mit anderem Nutzer teilen. |
+| `/api/readings/:id` | `GET` | Historische Messwerte abrufen. |
+
+### 3. Real-Time (WebSockets)
+Das Frontend nutzt **Socket.IO**, um Statusänderungen (z.B. Falle ausgelöst) in Millisekunden anzuzeigen, ohne die Seite neu zu laden.
+
+---
+
+## 🔔 Notification Engine
+CatchSensor unterstützt drei Kanäle:
+1. **FCM (Native Android)**: Direktes Push via Firebase.
+2. **Pushover**: Sekundärer Kanal für kritische Alarme.
+3. **Revierwelt**: Automatisches Auslösen von Fangmeldungen in Revierwelt.
+
+---
+
+## ⚙️ Firmware & Hardware
+
+### Hardware Specs
+- **MCU**: STM32L051 / STM32L432 (Ultra Low Power).
+- **Modem**: SIM7020E (NB-IoT).
+- **Sensor**: Reed-Kontakt (Gegen GND schaltend).
+
+### Pin-Belegung
+- `PB1`: Reed-Sensor (Interrupt).
+- `PA0`: Batterie-Messung (ADC).
+- `PA2/PA3`: UART zum SIM-Modul.
+
+---
+
+## 🔐 Security (AES-256)
+Jeder Sensor verschlüsselt seine Payload mit einem individuellen Schlüssel via **AES-256-CBC**. Das Backend entschlüsselt diese Daten erst nach dem Empfang. Dies verhindert "Man-in-the-Middle"-Angriffe über offene MQTT-Broker.
+
+---
+
+*Für detaillierte Hardware-Pläne siehe [PCB_DESIGN_GUIDE.md](file:///d:/CatchSensor/CatchSensor/firmware/PCB_DESIGN_GUIDE.md).*

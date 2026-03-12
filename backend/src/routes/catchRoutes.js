@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     console.log('POST /api/catches - Body:', req.body);
     try {
-        const { name, alias, location, imei, deviceId, type = 'NB-IOT' } = req.body;
+        const { name, alias, location, imei, deviceId, type = 'NB-IOT', revierweltWebhookUrl } = req.body;
         const identifier = (type === 'LORAWAN' ? deviceId : imei);
 
         if (!name && !alias) return res.status(400).json({ error: 'Name/Alias ist erforderlich' });
@@ -58,6 +58,7 @@ router.post('/', async (req, res) => {
             existingCatch.name = name || alias;
             existingCatch.alias = alias || name;
             existingCatch.location = location;
+            existingCatch.revierweltWebhookUrl = revierweltWebhookUrl;
             existingCatch.userId = req.user.id;
             existingCatch.type = type;
 
@@ -69,6 +70,7 @@ router.post('/', async (req, res) => {
             name: name || alias,
             alias: alias || name,
             location,
+            revierweltWebhookUrl,
             imei: type === 'NB-IOT' ? identifier : null,
             deviceId: type === 'LORAWAN' ? identifier : null,
             type,
