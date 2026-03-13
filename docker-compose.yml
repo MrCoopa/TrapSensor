@@ -46,6 +46,9 @@ services:
       - PUSHOVER_USER=${PUSHOVER_USER}
       - PUSHOVER_TOKEN=${PUSHOVER_TOKEN}
       - FCM_SERVER_KEY=${FCM_SERVER_KEY}
+      # Encryption Keys
+      - AES_SECRET_KEY=${AES_SECRET_KEY}
+      - BOOTSTRAP_KEY=${BOOTSTRAP_KEY}
     depends_on:
       catchsensor_db:
         condition: service_healthy
