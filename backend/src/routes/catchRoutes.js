@@ -1,14 +1,15 @@
 const express = require('express');
 const CatchSensor = require('../models/CatchSensor');
 const LoraMetadata = require('../models/LoraMetadata');
+const CatchShare = require('../models/CatchShare');
+const User = require('../models/User');
+const { Op } = require('sequelize');
 const router = express.Router();
 
 
 // Get all catches for the logged-in user (owned + shared)
 router.get('/', async (req, res) => {
     try {
-        const { Op } = require('sequelize');
-        const CatchShare = require('../models/CatchShare');
 
         const sharedShares = await CatchShare.findAll({
             where: { userId: req.user.id },
@@ -37,11 +38,12 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     console.log('POST /api/catches - Body:', req.body);
     try {
-        const { name, alias, location, imei, deviceId, type = 'NB-IOT', revierweltWebhookUrl } = req.body;
+        const { name, alias, location, imei, deviceId, type = 'NB-IOT', revierweltWebhookUrl, claimingPin } = req.body;
         const identifier = (type === 'LORAWAN' ? deviceId : imei);
 
         if (!name && !alias) return res.status(400).json({ error: 'Name/Alias ist erforderlich' });
         if (!identifier) return res.status(400).json({ error: `${type === 'LORAWAN' ? 'Device ID' : 'IMEI'} ist erforderlich` });
+        if (type === 'NB-IOT' && !claimingPin) return res.status(400).json({ error: 'Claiming-PIN ist für NB-IOT erforderlich' });
 
         let existingCatch = await CatchSensor.findOne({
             where: {
@@ -54,7 +56,12 @@ router.post('/', async (req, res) => {
                 return res.status(400).json({ error: 'Diese Kennung (IMEI/DeviceID) ist bereits registriert und einem anderen Benutzer zugewiesen.' });
             }
 
-            console.log(`Catch Claiming: User ${req.user.id} is claiming unbound catch ${identifier}`);
+            // For NB-IOT, verify the claiming PIN
+            if (type === 'NB-IOT' && existingCatch.claimingPin !== claimingPin) {
+                return res.status(401).json({ error: 'Ungültige Claiming-PIN für diesen Melder.' });
+            }
+
+            console.log(`Catch Claiming: User ${req.user.id} is claiming catch ${identifier}`);
             existingCatch.name = name || alias;
             existingCatch.alias = alias || name;
             existingCatch.location = location;

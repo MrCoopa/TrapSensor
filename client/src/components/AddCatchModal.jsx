@@ -10,7 +10,8 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
         imei: '',
         deviceId: '',
         type: 'NB-IOT',
-        revierweltWebhookUrl: ''
+        revierweltWebhookUrl: '',
+        claimingPin: ''
     });
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -45,7 +46,7 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
             if (response.ok) {
                 const newCatch = await response.json();
                 onAdd(newCatch);
-                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT', revierweltWebhookUrl: '' });
+                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT', revierweltWebhookUrl: '', claimingPin: '' });
                 onClose();
 
             } else {
@@ -107,14 +108,13 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
                         />
                     </div>
 
-
                     <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Standort (optional)</label>
                         <input
                             type="text"
                             value={formData.location}
                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                            className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-700 outline-none transition-all"
+                            className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-[#1b3a2e]/20 outline-none transition-all"
                             placeholder="z.B. Obere Dickung / Bachlauf"
                         />
                     </div>
@@ -141,6 +141,20 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
                             </button>
                         </div>
                     </div>
+
+                    {formData.type === 'NB-IOT' && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Claiming PIN (vom Aufkleber)</label>
+                            <input
+                                required
+                                type="text"
+                                value={formData.claimingPin}
+                                onChange={(e) => setFormData({ ...formData, claimingPin: e.target.value.toUpperCase() })}
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-[#1b3a2e]/20 outline-none"
+                                placeholder="z.B. A7X9"
+                            />
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 font-mono text-[10px] text-green-700">Revierwelt Webhook (optional)</label>

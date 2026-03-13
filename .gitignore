@@ -6,3 +6,16 @@ build/
 coverage/
 .vscode/
 backend/serviceAccountKey.json
+
+# Local Certificates and Keys
+certs/
+*.key
+*.key.fCnt
+.env.test
+
+# Compiled Simulator
+backend/tests/*.exe
+
+# Logs and Temp
+*.txt
+tmp/

@@ -11,15 +11,23 @@ const { sendUnifiedNotification } = require('./notificationService');
 const voltageToBatteryPercent = (mV) => Math.min(100, Math.max(0, Math.floor((mV - 3300) / 9)));
 
 
+let globalAedes = null;
+
 const setupMQTT = (io, aedes) => {
+    globalAedes = aedes;
     // 1. Path A: Internal NB-IoT Broker (Aedes)
 
     if (aedes) {
         aedes.on('publish', async (packet, client) => {
             if (packet.topic.startsWith('$SYS')) return; // Ignore system topics
             console.log(`MQTT: 📥 Internal Broker received publish on: ${packet.topic}`);
-            if (packet.topic && packet.topic.startsWith('catches/') && packet.topic.endsWith('/data')) {
-                handleMQTTMessage(packet.topic, packet.payload, io, 'NB-IOT');
+            
+            if (packet.topic && packet.topic.startsWith('catches/')) {
+                if (packet.topic.endsWith('/data')) {
+                    handleMQTTMessage(packet.topic, packet.payload, io, 'NB-IOT');
+                } else if (packet.topic.endsWith('/provision')) {
+                    handleProvisioningMessage(packet.topic, packet.payload, io);
+                }
             }
         });
     }
@@ -141,14 +149,28 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
             let dataBuffer = payload;
 
-            // Auto-Detect AES (32 chars hex = 16 bytes binary)
-            if (payload.length === 32 && process.env.AES_SECRET_KEY && process.env.AES_SECRET_KEY.length === 32) {
+            // 1. Fetch internal CatchSensor record to check for provisioned key
+            const catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+            
+            // 2. Encryption Logic
+            // Priority: Individual Key (if provisioned) > Global Key
+            const individualKey = catchSensor?.isProvisioned ? catchSensor.aesKey : null;
+            const globalKey = process.env.AES_SECRET_KEY;
+            
+            let keyBuffer = null;
+            if (individualKey && individualKey.length === 64) {
+                keyBuffer = Buffer.from(individualKey, 'hex');
+            } else if (globalKey && globalKey.length === 32) {
+                keyBuffer = Buffer.from(globalKey);
+            }
+
+            if (payload.length === 32 && keyBuffer) {
                 try {
-                    const encrypted = Buffer.from(payload.toString(), 'hex');
-                    const decipher = crypto.createDecipheriv('aes-256-ecb', Buffer.from(process.env.AES_SECRET_KEY), null);
+                    const decrypted = Buffer.from(payload.toString(), 'hex');
+                    const decipher = crypto.createDecipheriv('aes-256-ecb', keyBuffer, null);
                     decipher.setAutoPadding(false);
-                    dataBuffer = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId}`);
+                    dataBuffer = Buffer.concat([decipher.update(decrypted), decipher.final()]);
+                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId} using ${individualKey ? 'INDIVIDUAL' : 'GLOBAL'} key`);
                 } catch (decErr) {
                     console.error(`MQTT: ❌ AES Decryption failed for ${deviceId}:`, decErr.message);
                     return; // Fail if decryption is attempted but fails
@@ -269,6 +291,76 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
         }
     } catch (err) {
         console.error('MQTT Handler Error:', err);
+    }
+};
+
+/**
+ * Handles the Trust-On-First-Use (TOFU) Provisioning Handshake
+ * Expected payload: 32-byte (64 hex) individual key encrypted with BOOTSTRAP_KEY
+ */
+const handleProvisioningMessage = async (topic, payload, io) => {
+    const deviceId = topic.split('/')[1];
+    console.log(`MQTT: 🗝️ Provisioning request from ${deviceId}`);
+
+    try {
+        const bootstrapKey = process.env.BOOTSTRAP_KEY;
+        if (!bootstrapKey || bootstrapKey.length !== 32) {
+            console.error('MQTT: ❌ BOOTSTRAP_KEY not configured or invalid length');
+            return;
+        }
+
+        const encrypted = Buffer.from(payload.toString(), 'hex');
+        if (encrypted.length !== 32) {
+            console.error(`MQTT: ⚠️ Invalid provisioning payload length: ${encrypted.length}. Expected 32 bytes for AES-256.`);
+            return;
+        }
+
+        const decipher = crypto.createDecipheriv('aes-256-ecb', Buffer.from(bootstrapKey), null);
+        decipher.setAutoPadding(false);
+        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+        
+        const individualKeyHex = decrypted.toString('hex').toUpperCase();
+        console.log(`MQTT: 🔐 Decrypted new 32-byte individual key for ${deviceId}`);
+
+        let catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+        if (!catchSensor) {
+            console.log(`MQTT: 🆕 Auto-provising ${deviceId} during handshake`);
+            catchSensor = await CatchSensor.create({
+                imei: deviceId,
+                name: `New Device ${deviceId}`,
+                alias: deviceId,
+                type: 'NB-IOT',
+                status: 'inactive'
+            });
+        }
+
+        await catchSensor.update({
+            aesKey: individualKeyHex,
+            isProvisioned: true
+        });
+
+        console.log(`MQTT: ✅ Device ${deviceId} provisioned with individual key.`);
+        
+        // Send confirmation back to device so it can delete the bootstrap key
+        const resTopic = `catches/${deviceId}/provision/res`;
+        // We send "PROV_OK_CONFIRM_32_BYTE_KEY_SYNC" (32 bytes) encrypted with the NEW key
+        const cipher = crypto.createCipheriv('aes-256-ecb', Buffer.from(individualKeyHex, 'hex'), null);
+        cipher.setAutoPadding(false);
+        const confirmation = Buffer.concat([cipher.update(Buffer.from("PROV_OK_CONFIRM_32_BYTE_HANDSHK")), cipher.final()]);
+        
+        if (globalAedes) {
+            globalAedes.publish({
+                topic: resTopic,
+                payload: confirmation.toString('hex'),
+                qos: 0,
+                retain: false
+            }, (err) => {
+                if (err) console.error(`MQTT: Failed to send provision confirmation to ${deviceId}`, err);
+                else console.log(`MQTT: 📤 Sent provision confirmation to ${deviceId}`);
+            });
+        }
+    } catch (err) {
+        console.error(`MQTT: ❌ Provisioning failed for ${deviceId}:`, err.message);
     }
 };
 

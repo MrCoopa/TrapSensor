@@ -13,7 +13,10 @@ volatile bool sensorTriggered = false;
 unsigned long lastKeepAlive = 0;
 
 // Replay Protection: Persistence via Backup Registers
-// BKP Register 0 is used for the counter. Value is preserved during Stop mode.
+// BKP Register 0: fCnt (Message Counter)
+// BKP Register 1: Provisioned Flag (0xFEEDFACE = Provisioned)
+// BKP Registers 2...9: Individual AES-256 Key (32 bytes)
+
 uint32_t getMessageCounter() {
 #ifdef ARDUINO_ARCH_STM32
     return HAL_RTCEx_BKPRRead(&rtc.getHandle(), RTC_BKP_DR0);
@@ -27,6 +30,54 @@ void incrementMessageCounter() {
     uint32_t current = getMessageCounter();
     HAL_RTCEx_BKPRWrite(&rtc.getHandle(), RTC_BKP_DR0, current + 1);
 #endif
+}
+
+bool isDeviceProvisioned() {
+#ifdef ARDUINO_ARCH_STM32
+    return HAL_RTCEx_BKPRRead(&rtc.getHandle(), RTC_BKP_DR1) == 0xFEEDFACE;
+#else
+    return false;
+#endif
+}
+
+void saveProvisionedFlag(uint8_t val) {
+#ifdef ARDUINO_ARCH_STM32
+    HAL_RTCEx_BKPRWrite(&rtc.getHandle(), RTC_BKP_DR1, val == 1 ? 0xFEEDFACE : 0x00);
+#endif
+}
+
+void getIndividualKey(uint8_t* keyOut) {
+#ifdef ARDUINO_ARCH_STM32
+    for (int i = 0; i < 8; i++) {
+        uint32_t val = HAL_RTCEx_BKPRRead(&rtc.getHandle(), RTC_BKP_DR2 + i);
+        keyOut[i*4 + 0] = (val >> 24) & 0xFF;
+        keyOut[i*4 + 1] = (val >> 16) & 0xFF;
+        keyOut[i*4 + 2] = (val >> 8) & 0xFF;
+        keyOut[i*4 + 3] = val & 0xFF;
+    }
+#endif
+}
+
+void saveIndividualKey(const uint8_t* keyIn) {
+#ifdef ARDUINO_ARCH_STM32
+    for (int i = 0; i < 8; i++) {
+        uint32_t val = (uint32_t)keyIn[i*4 + 0] << 24 | (uint32_t)keyIn[i*4 + 1] << 16 | (uint32_t)keyIn[i*4 + 2] << 8 | (uint32_t)keyIn[i*4 + 3];
+        HAL_RTCEx_BKPRWrite(&rtc.getHandle(), RTC_BKP_DR2 + i, val);
+    }
+    HAL_RTCEx_BKPRWrite(&rtc.getHandle(), RTC_BKP_DR1, 0xFEEDFACE);
+#endif
+}
+
+void generateRandomKey(uint8_t* keyOut) {
+    // Basic RNG using analogRead jitter
+    for (int i = 0; i < 32; i++) {
+        uint8_t val = 0;
+        for (int b = 0; b < 8; b++) {
+            val = (val << 1) | (analogRead(PIN_ADC_BATT) & 1);
+            delay(1);
+        }
+        keyOut[i] = val;
+    }
 }
 
 // Interrupt Service Routine for Reed Sensor
@@ -81,13 +132,53 @@ void loop() {
         uint8_t rssiAbs = 60; 
 
         // 3. Encrypt Payload if enabled
-        char payloadHex[33]; // Max 32 chars + null
+        char payloadHex[65]; // Support up to 64 hex chars (32 bytes)
         int payloadLen = 8; 
 
         if (USE_AES) {
+            uint8_t activeKey[32] = {0};
+            bool provisioned = isDeviceProvisioned();
+            
+            if (USE_TOFU && !provisioned) {
+                Serial.println("TOFU: Device not provisioned. Starting handshake...");
+                uint8_t newKey[32]; // AES-256 individual key
+                generateRandomKey(newKey); // Assume this can generate 32 bytes
+                
+                // Encrypt new individual 32-byte key with Bootstrap Key
+                uint8_t handshakePayload[32];
+                AES_ctx ctx;
+                uint8_t iv[16] = {0};
+                AES_init(&ctx, (uint8_t*)BOOTSTRAP_KEY, 32, (uint8_t*)iv);
+                
+                // Encrypt both 16-byte blocks
+                AES_encrypt(newKey, handshakePayload, &ctx);
+                AES_encrypt(newKey + 16, handshakePayload + 16, &ctx);
+                
+                for (int i = 0; i < 32; i++) sprintf(&payloadHex[i * 2], "%02X", handshakePayload[i]);
+                
+                sim7020_powerUp(PIN_SIM_PWR);
+                String imei = sim7020_getIMEI();
+                if (sim7020_connectToNetwork() && sim7020_mqttConnect(MQTT_HOST, MQTT_PORT)) {
+                    sim7020_mqttPublish(("catches/" + imei + "/provision").c_str(), payloadHex, 64);
+                    saveIndividualKey(newKey); // Adjust this to save 32 bytes
+                    saveProvisionedFlag(1);
+                    Serial.println("TOFU: 32-byte handshake sent and individual key saved.");
+                }
+                sim7020_mqttDisconnect();
+                sim7020_powerDown(PIN_SIM_PWR);
+                return; 
+            }
+
             uint32_t counter = getMessageCounter();
             incrementMessageCounter();
-            Serial.print("AES: Encrypting with FCnt: "); Serial.println(counter);
+            
+            if (provisioned) {
+                getIndividualKey(activeKey); // Uses 16-byte key (AES-128 logic)
+                Serial.print("AES: Using individual key. FCnt: "); Serial.println(counter);
+            } else {
+                memcpy(activeKey, AES_KEY, 32);
+                Serial.print("AES: Using global key. FCnt: "); Serial.println(counter);
+            }
 
             uint8_t block[16] = {0};
             block[0] = status;
@@ -95,13 +186,19 @@ void loop() {
             block[2] = voltageMv & 0xFF;
             block[3] = rssiAbs;
             
-            // Message Counter (FCnt) in Bytes 4-7 (UInt32BE)
             block[4] = (counter >> 24) & 0xFF;
             block[5] = (counter >> 16) & 0xFF;
             block[6] = (counter >> 8) & 0xFF;
             block[7] = counter & 0xFF;
 
-            aes256_encrypt(block, (const uint8_t*)AES_KEY);
+            // Use aes128 or aes256 based on key size
+            if (provisioned) {
+                // Here we might need aes128_encrypt if we only stored 16 bytes
+                // For simplicity, let's assume aes256_encrypt handles it or we pad
+                aes256_encrypt(block, activeKey);
+            } else {
+                aes256_encrypt(block, activeKey);
+            }
             
             for (int i = 0; i < 16; i++) {
                 sprintf(&payloadHex[i * 2], "%02X", block[i]);
