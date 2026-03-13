@@ -1044,6 +1044,7 @@ const Setup = ({ onLogout }) => {
                     onClose={() => setIsEditModalOpen(false)}
                     catchSensor={catchToEdit}
                     onEdit={handleCatchUpdated}
+                    revierweltEnabled={revierweltEnabled}
                 />
 
             </main >
