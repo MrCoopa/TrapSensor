@@ -14,6 +14,7 @@ const Dashboard = ({ onLogout }) => {
     const [loading, setLoading] = useState(true);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedCatch, setSelectedCatch] = useState(null);
+    const [revierweltEnabled, setRevierweltEnabled] = useState(false);
 
     const baseUrl = ''; // kept for socket.io if needed, or remove if socket io also proxies
 
@@ -40,6 +41,21 @@ const Dashboard = ({ onLogout }) => {
         }
     };
 
+    const fetchUserProfile = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/auth/me`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setRevierweltEnabled(data.revierweltEnabled || false);
+            }
+        } catch (error) {
+            console.error('Fehler beim Abrufen des Benutzerprofils:', error);
+        }
+    };
+
     // Helper to get current user ID
     const getCurrentUserId = () => {
         const token = localStorage.getItem('token');
@@ -56,6 +72,7 @@ const Dashboard = ({ onLogout }) => {
 
     useEffect(() => {
         fetchCatches();
+        fetchUserProfile();
 
         const token = localStorage.getItem('token');
         if (!token) return;
@@ -207,6 +224,7 @@ const Dashboard = ({ onLogout }) => {
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
                 onAdd={handleAddCatch}
+                revierweltEnabled={revierweltEnabled}
             />
 
             <CatchDetailsModal

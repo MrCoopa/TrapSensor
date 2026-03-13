@@ -30,6 +30,8 @@ const Setup = ({ onLogout }) => {
     const [catchAlertInterval, setCatchAlertInterval] = useState(3);
     const [showPushover, setShowPushover] = useState(false);
     const [pushoverEnabled, setPushoverEnabled] = useState(false);
+    const [revierweltEnabled, setRevierweltEnabled] = useState(false);
+    const [showRevierwelt, setShowRevierwelt] = useState(false);
     const [notifPermission, setNotifPermission] = useState('default');
     const [showDebug, setShowDebug] = useState(false);
 
@@ -154,6 +156,7 @@ const Setup = ({ onLogout }) => {
                 setOfflineAlertInterval(userData.offlineAlertInterval || 24);
                 setCatchAlertInterval(userData.catchAlertInterval || 1);
                 setPushoverEnabled(userData.pushoverEnabled || false);
+                setRevierweltEnabled(userData.revierweltEnabled || false);
                 if (userData.pushEnabled !== undefined) { /* ignore, always enabled now */ }
 
 
@@ -211,6 +214,7 @@ const Setup = ({ onLogout }) => {
                     batteryThreshold,
                     catchAlertInterval,
                     pushoverEnabled,
+                    revierweltEnabled,
                     ...overrides
                 })
             });
@@ -535,6 +539,11 @@ const Setup = ({ onLogout }) => {
                             />
                         </div>
 
+                        {/* Integrations Header */}
+                        <div className="p-4 bg-gray-50/50">
+                            <label className="text-[10px] font-black text-[#1b3a2e] uppercase tracking-widest">Integrationen</label>
+                        </div>
+
                         {/* Pushover Config Row */}
                         <div className="p-4 space-y-4">
                             <div
@@ -571,14 +580,14 @@ const Setup = ({ onLogout }) => {
                                     <input
                                         type="text"
                                         placeholder="Pushover Application Key (Token)..."
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-orange-500 transition-colors"
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500 transition-colors"
                                         value={pushoverAppKey}
                                         onChange={(e) => setPushoverAppKey(e.target.value)}
                                     />
                                     <input
                                         type="text"
                                         placeholder="Pushover User Key..."
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-xs focus:outline-none focus:border-orange-500 transition-colors"
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500 transition-colors"
                                         value={pushoverUserKey}
                                         onChange={(e) => setPushoverUserKey(e.target.value)}
                                     />
@@ -587,12 +596,60 @@ const Setup = ({ onLogout }) => {
                                         disabled={isSavingProfile}
                                         className={`w-full py-3 bg-black text-white text-xs font-black rounded-xl hover:bg-gray-800 transition-all ${isSavingProfile ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
-                                        {isSavingProfile ? 'Speichere...' : 'Einstellungen Speichern'}
+                                        {isSavingProfile ? 'Speichere...' : 'Pushover Speichern'}
                                     </button>
                                 </div>
                             )}
                         </div>
 
+                        {/* Revierwelt Config Row */}
+                        <div className="p-4 space-y-4">
+                            <div
+                                className="flex items-center space-x-4 cursor-pointer hover:bg-gray-50 -m-4 p-4 transition-colors"
+                                onClick={() => setShowRevierwelt(!showRevierwelt)}
+                            >
+                                <div className="bg-green-50 p-2.5 rounded-2xl text-green-700">
+                                    <Shield size={20} />
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-sm font-bold text-gray-900">Revierwelt Integration</p>
+                                    <p className="text-[10px] text-gray-400 font-medium">Fallenmeldung an Revierwelt</p>
+                                </div>
+                                <div className="flex items-center space-x-2 px-2" onClick={(e) => e.stopPropagation()}>
+                                    <div
+                                        onClick={() => {
+                                            const newVal = !revierweltEnabled;
+                                            setRevierweltEnabled(newVal);
+                                            setTimeout(() => handleUpdateProfileWithVal({ revierweltEnabled: newVal }), 0);
+                                        }}
+                                        className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${revierweltEnabled ? 'bg-[#1b3a2e]' : 'bg-gray-200'}`}
+                                    >
+                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${revierweltEnabled ? 'left-6' : 'left-1'}`} />
+                                    </div>
+                                </div>
+                                <ChevronRight
+                                    size={18}
+                                    className={`text-gray-300 transition-transform ${showRevierwelt ? 'rotate-90' : ''}`}
+                                />
+                            </div>
+
+                            {showRevierwelt && (
+                                <div className="space-y-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100">
+                                        <p className="text-[10px] text-blue-700 leading-relaxed font-medium">
+                                            Wenn diese Integration aktiv ist, kannst du beim Anlegen eines neuen Melders direkt deinen Revierwelt-Webhook angeben.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleUpdateProfile}
+                                        disabled={isSavingProfile}
+                                        className={`w-full py-3 bg-black text-white text-xs font-black rounded-xl hover:bg-gray-800 transition-all ${isSavingProfile ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isSavingProfile ? 'Speichere...' : 'Revierwelt Einstellungen Speichern'}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </section>
 

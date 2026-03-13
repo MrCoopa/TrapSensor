@@ -47,6 +47,10 @@ const User = sequelize.define('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
     },
+    revierweltEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
     batteryThreshold: {
         type: DataTypes.INTEGER,
         defaultValue: 15,
