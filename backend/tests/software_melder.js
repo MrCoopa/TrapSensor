@@ -9,7 +9,8 @@ const envPath = fs.existsSync(path.resolve(process.cwd(), '.env'))
 require('dotenv').config({ path: envPath });
 
 const BOOTSTRAP_KEY = process.env.BOOTSTRAP_KEY;
-const BROKER_URL = process.env.MQTT_BROKER_URL || 'mqtt://127.0.0.1:1884'; // Default port 1884
+const DEFAULT_HOST = process.env.DB_HOST || '127.0.0.1';
+const BROKER_URL = process.env.MQTT_BROKER_URL || `mqtt://${DEFAULT_HOST}:1884`;
 const MQTT_USER = process.env.INTERNAL_MQTT_USER;
 const MQTT_PASS = process.env.INTERNAL_MQTT_PASS;
 
