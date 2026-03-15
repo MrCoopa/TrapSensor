@@ -1,3 +1,5 @@
+const { Op } = require('sequelize');
+const crypto = require('crypto');
 const mqtt = require('mqtt');
 const CatchSensor = require('../models/CatchSensor');
 const Reading = require('../models/Reading');
