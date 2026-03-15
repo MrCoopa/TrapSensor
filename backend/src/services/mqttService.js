@@ -343,10 +343,10 @@ const handleProvisioningMessage = async (topic, payload, io) => {
 
         // Send confirmation back to device so it can delete the bootstrap key
         const resTopic = `catches/${deviceId}/provision/res`;
-        // We send "PROV_OK_CONFIRM_32_BYTE_KEY_SYNC" (32 bytes) encrypted with the NEW key
+        // We send "PROV_OK_CONFIRM_32_BYTE_HANDSHK!" (32 bytes) encrypted with the NEW key
         const cipher = crypto.createCipheriv('aes-256-ecb', Buffer.from(individualKeyHex, 'hex'), null);
         cipher.setAutoPadding(false);
-        const confirmation = Buffer.concat([cipher.update(Buffer.from("PROV_OK_CONFIRM_32_BYTE_HANDSHK")), cipher.final()]);
+        const confirmation = Buffer.concat([cipher.update(Buffer.from("PROV_OK_CONFIRM_32_BYTE_HANDSHK!")), cipher.final()]);
 
         if (globalAedes) {
             globalAedes.publish({
