@@ -105,6 +105,15 @@ const connectToBroker = (config, onMessage) => {
 
 
 const crypto = require('crypto');
+const MASTER_SALT = process.env.MASTER_SALT || '';
+
+/**
+ * Derives a 32-byte AES-256 key from an IMEI and the MASTER_SALT.
+ */
+function deriveKey(imei) {
+    if (!MASTER_SALT) return null;
+    return crypto.createHash('sha256').update(imei + MASTER_SALT).digest();
+}
 
 const lastPayloads = new Map(); // Cache for DDoS prevention: IMEI -> { payloadHex, count, firstSeen }
 
@@ -153,14 +162,19 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             const catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
 
             // 2. Encryption Logic
-            // Priority: Individual Key (if provisioned) > Global Key
-            const individualKey = catchSensor?.isProvisioned ? catchSensor.aesKey : null;
+            // Priority: Derived Key (from IMEI + SALT) > Individual Key (DB) > Global Key
+            const derivedKey = deriveKey(deviceId);
             const globalKey = process.env.AES_SECRET_KEY;
-
+            
             let keyBuffer = null;
-            if (individualKey && individualKey.length === 64) {
-                keyBuffer = Buffer.from(individualKey, 'hex');
+            if (derivedKey) {
+                console.log(`MQTT: 🔐 Using DERIVED key for ${deviceId} (Master Salt active)`);
+                keyBuffer = derivedKey;
+            } else if (catchSensor?.isProvisioned && catchSensor.aesKey?.length === 64) {
+                console.log(`MQTT: 🔐 Using stored INDIVIDUAL key for ${deviceId}`);
+                keyBuffer = Buffer.from(catchSensor.aesKey, 'hex');
             } else if (globalKey && globalKey.length === 32) {
+                console.log(`MQTT: 🔐 Falling back to GLOBAL key for ${deviceId}`);
                 keyBuffer = Buffer.from(globalKey);
             }
 
@@ -170,7 +184,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                     const decipher = crypto.createDecipheriv('aes-256-ecb', keyBuffer, null);
                     decipher.setAutoPadding(false);
                     dataBuffer = Buffer.concat([decipher.update(decrypted), decipher.final()]);
-                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId} using ${individualKey ? 'INDIVIDUAL' : 'GLOBAL'} key`);
+                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId} using ${derivedKey ? 'DERIVED' : (catchSensor?.isProvisioned ? 'INDIVIDUAL' : 'GLOBAL')} key`);
                 } catch (decErr) {
                     console.error(`MQTT: ❌ AES Decryption failed for ${deviceId}:`, decErr.message);
                     return; // Fail if decryption is attempted but fails
@@ -300,68 +314,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
  */
 const handleProvisioningMessage = async (topic, payload, io) => {
     const deviceId = topic.split('/')[1];
-    console.log(`MQTT: 🗝️ Provisioning request from ${deviceId}`);
-
-    try {
-        const bootstrapKey = process.env.BOOTSTRAP_KEY;
-        if (!bootstrapKey || bootstrapKey.length !== 32) {
-            console.error('MQTT: ❌ BOOTSTRAP_KEY not configured or invalid length');
-            return;
-        }
-
-        const encrypted = Buffer.from(payload.toString(), 'hex');
-        if (encrypted.length !== 32) {
-            console.error(`MQTT: ⚠️ Invalid provisioning payload length: ${encrypted.length}. Expected 32 bytes for AES-256.`);
-            return;
-        }
-
-        const decipher = crypto.createDecipheriv('aes-256-ecb', Buffer.from(bootstrapKey), null);
-        decipher.setAutoPadding(false);
-        const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-
-        const individualKeyHex = decrypted.toString('hex').toUpperCase();
-        console.log(`MQTT: 🔐 Decrypted new 32-byte individual key for ${deviceId}`);
-
-        let catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
-        if (!catchSensor) {
-            console.log(`MQTT: 🆕 Auto-provising ${deviceId} during handshake`);
-            catchSensor = await CatchSensor.create({
-                imei: deviceId,
-                name: `New Device ${deviceId}`,
-                alias: deviceId,
-                type: 'NB-IOT',
-                status: 'inactive'
-            });
-        }
-
-        await catchSensor.update({
-            aesKey: individualKeyHex,
-            isProvisioned: true
-        });
-
-        console.log(`MQTT: ✅ Device ${deviceId} provisioned with individual key.`);
-
-        // Send confirmation back to device so it can delete the bootstrap key
-        const resTopic = `catches/${deviceId}/provision/res`;
-        // We send "PROV_OK_CONFIRM_32_BYTE_HANDSHK!" (32 bytes) encrypted with the NEW key
-        const cipher = crypto.createCipheriv('aes-256-ecb', Buffer.from(individualKeyHex, 'hex'), null);
-        cipher.setAutoPadding(false);
-        const confirmation = Buffer.concat([cipher.update(Buffer.from("PROV_OK_CONFIRM_32_BYTE_HANDSHK!")), cipher.final()]);
-
-        if (globalAedes) {
-            globalAedes.publish({
-                topic: resTopic,
-                payload: confirmation.toString('hex'),
-                qos: 0,
-                retain: false
-            }, (err) => {
-                if (err) console.error(`MQTT: Failed to send provision confirmation to ${deviceId}`, err);
-                else console.log(`MQTT: 📤 Sent provision confirmation to ${deviceId}`);
-            });
-        }
-    } catch (err) {
-        console.error(`MQTT: ❌ Provisioning failed for ${deviceId}:`, err.message);
-    }
+    console.log(`MQTT: 🗝️ DEPRECATED provisioning request from ${deviceId}. Device should use Master Salt derivation instead.`);
 };
 
 const updateCatchSensorData = async (deviceId, data, io) => {

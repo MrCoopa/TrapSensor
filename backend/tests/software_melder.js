@@ -8,11 +8,19 @@ const envPath = fs.existsSync(path.resolve(process.cwd(), '.env'))
 
 require('dotenv').config({ path: envPath });
 
-const BOOTSTRAP_KEY = process.env.BOOTSTRAP_KEY;
+const MASTER_SALT = process.env.MASTER_SALT || '';
 const DEFAULT_HOST = process.env.DB_HOST || '127.0.0.1';
 const BROKER_URL = process.env.MQTT_BROKER_URL || `mqtt://${DEFAULT_HOST}:1884`;
 const MQTT_USER = process.env.INTERNAL_MQTT_USER;
 const MQTT_PASS = process.env.INTERNAL_MQTT_PASS;
+
+/**
+ * Derives a 32-byte AES-256 key from an IMEI and the MASTER_SALT.
+ */
+function deriveKey(imei) {
+    if (!MASTER_SALT) return null;
+    return crypto.createHash('sha256').update(imei + MASTER_SALT).digest();
+}
 
 // Configuration from CLI
 const args = process.argv.slice(2);
@@ -21,14 +29,14 @@ const status = args[1] === 'triggered' ? 0x00 : 0x01; // 0x01 = active, 0x00 = t
 const voltage = parseInt(args[2]) || 4150; // mV
 const rssi = parseInt(args[3]) || 65;
 
-const keyFile = path.resolve(__dirname, `melder_${imei}.key`);
+const fCntFile = path.resolve(__dirname, `melder_${imei}.fCnt`);
 
 async function runMelder() {
-    console.log(`\n🚀 Software Melder Simulator [IMEI: ${imei}]`);
+    console.log(`\n🚀 Software Melder Simulator (Master Salt Mode) [IMEI: ${imei}]`);
     console.log(`📍 Broker: ${BROKER_URL}`);
 
-    if (!BOOTSTRAP_KEY || BOOTSTRAP_KEY.length !== 32) {
-        console.error('❌ Error: BOOTSTRAP_KEY must be 32 characters in .env');
+    if (!MASTER_SALT) {
+        console.error('❌ Error: MASTER_SALT must be set in .env');
         process.exit(1);
     }
 
@@ -42,43 +50,19 @@ async function runMelder() {
     client.on('connect', async () => {
         console.log('✅ Connected to MQTT Broker');
 
-        let individualKey;
-
-        // 1. Handshake Flow (only if not already provisioned)
-        if (!fs.existsSync(keyFile)) {
-            console.log('🔑 No key found. Starting TOFU Handshake...');
-            
-            // Generate individual 32-byte key
-            individualKey = crypto.randomBytes(32);
-            
-            // Encrypt with bootstrap key
-            const cipher = crypto.createCipheriv('aes-256-ecb', Buffer.from(BOOTSTRAP_KEY), null);
-            cipher.setAutoPadding(false);
-            const encryptedKey = Buffer.concat([cipher.update(individualKey), cipher.final()]);
-
-            const provTopic = `catches/${imei}/provision`;
-            const payload = encryptedKey.toString('hex').toUpperCase();
-
-            console.log(`📤 Publishing Handshake to ${provTopic}...`);
-            client.publish(provTopic, payload, { qos: 1 });
-
-            // Store key locally
-            fs.writeFileSync(keyFile, individualKey.toString('hex'));
-            fs.writeFileSync(keyFile + '.fCnt', '0');
-            console.log(`💾 Individual Key stored in ${path.basename(keyFile)}`);
-            
-            // Small delay to allow backend to process
-            await new Promise(r => setTimeout(r, 1000));
-        } else {
-            individualKey = Buffer.from(fs.readFileSync(keyFile, 'utf8'), 'hex');
-            console.log('📖 Used existing individual key from local storage.');
-        }
+        // Derive key algorithmically
+        const individualKey = deriveKey(imei);
+        console.log('🔐 Derived individual key for this session (No handshake needed)');
 
         // 2. Data Reporting Flow
         console.log(`\n📊 Preparing Data Report [Status: ${status === 0 ? 'TRIGGERED' : 'ACTIVE'}, Volt: ${voltage}mV, RSSI: ${rssi}]`);
 
-        const fCnt = parseInt(fs.readFileSync(keyFile + '.fCnt', 'utf8')) + 1;
-        fs.writeFileSync(keyFile + '.fCnt', fCnt.toString());
+        let fCnt = 0;
+        if (fs.existsSync(fCntFile)) {
+            fCnt = parseInt(fs.readFileSync(fCntFile, 'utf8'));
+        }
+        fCnt++;
+        fs.writeFileSync(fCntFile, fCnt.toString());
 
         const data = Buffer.alloc(16);
         data.writeUInt8(status, 0);
