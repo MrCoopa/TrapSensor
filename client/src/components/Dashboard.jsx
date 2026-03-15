@@ -15,6 +15,7 @@ const Dashboard = ({ onLogout }) => {
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [selectedCatch, setSelectedCatch] = useState(null);
     const [revierweltEnabled, setRevierweltEnabled] = useState(false);
+    const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connected', 'disconnected', 'connecting'
 
     const baseUrl = ''; // kept for socket.io if needed, or remove if socket io also proxies
 
@@ -36,6 +37,7 @@ const Dashboard = ({ onLogout }) => {
             }
         } catch (error) {
             console.error('Fehler beim Abrufen der Melder:', error);
+            setConnectionStatus('disconnected');
         } finally {
             setLoading(false);
         }
@@ -81,11 +83,28 @@ const Dashboard = ({ onLogout }) => {
         const socket = io(API_BASE, {
             auth: {
                 token: token
-            }
+            },
+            reconnectionAttempts: 5,
+            timeout: 10000
+        });
+
+        socket.on('connect', () => {
+            console.log('Socket: Connected to backend');
+            setConnectionStatus('connected');
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.warn('Socket: Disconnected:', reason);
+            setConnectionStatus('disconnected');
+        });
+
+        socket.on('reconnecting', () => {
+            setConnectionStatus('connecting');
         });
 
         socket.on('connect_error', (err) => {
             console.error('Socket Authentication Error:', err.message);
+            setConnectionStatus('disconnected');
         });
 
         socket.on('catchSensorUpdate', (updatedCatch) => {
@@ -141,6 +160,9 @@ const Dashboard = ({ onLogout }) => {
 
         return () => {
             console.log('Dashboard: Cleaning up socket & listeners');
+            socket.off('connect');
+            socket.off('disconnect');
+            socket.off('reconnecting');
             socket.off('connect_error');
             socket.off('catchSensorUpdate');
             socket.disconnect();
@@ -192,9 +214,21 @@ const Dashboard = ({ onLogout }) => {
                         <h1 className="text-2xl font-black tracking-tight">CatchSensor</h1>
                     </div>
                     <div className="flex items-center space-x-3">
-                        <div className="bg-green-600/90 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
-                            Online
-                        </div>
+                        {connectionStatus === 'connected' && (
+                            <div className="bg-green-600/90 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">
+                                Online
+                            </div>
+                        )}
+                        {connectionStatus === 'disconnected' && (
+                            <div className="bg-red-600/90 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase animate-pulse">
+                                Offline
+                            </div>
+                        )}
+                        {connectionStatus === 'connecting' && (
+                            <div className="bg-amber-500/90 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase animate-pulse">
+                                Verbinde...
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>
