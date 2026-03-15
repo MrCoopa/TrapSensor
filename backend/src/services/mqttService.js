@@ -21,7 +21,7 @@ const setupMQTT = (io, aedes) => {
         aedes.on('publish', async (packet, client) => {
             if (packet.topic.startsWith('$SYS')) return; // Ignore system topics
             console.log(`MQTT: 📥 Internal Broker received publish on: ${packet.topic}`);
-            
+
             if (packet.topic && packet.topic.startsWith('catches/')) {
                 if (packet.topic.endsWith('/data')) {
                     handleMQTTMessage(packet.topic, packet.payload, io, 'NB-IOT');
@@ -123,14 +123,14 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
             if (cacheEntry && cacheEntry.payloadHex === payloadHex) {
                 cacheEntry.count++;
-                
+
                 // Start the 24h window only at the first REPETITION (i.e. second identical packet)
                 if (cacheEntry.count === 2) {
                     cacheEntry.firstRepetitionAt = now;
                 }
 
                 const timeDiff = cacheEntry.firstRepetitionAt ? (now - cacheEntry.firstRepetitionAt) : 0;
-                
+
                 // If more than 3 identical packets (1 original + 3 reps) within 24 hours of the first rep
                 if (cacheEntry.count > 3 && timeDiff < 24 * 60 * 60 * 1000) {
                     console.error(`MQTT: ⚠️ KRITISCH: Melder ${deviceId} wird geflutet! Identisches Paket bereits ${cacheEntry.count}x innerhalb von 24h empfangen.`);
@@ -139,24 +139,24 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 }
                 return;
             }
-            
+
             // New or different payload: Reset cache entry
-            lastPayloads.set(deviceId, { 
-                payloadHex, 
-                count: 1, 
-                firstRepetitionAt: null 
+            lastPayloads.set(deviceId, {
+                payloadHex,
+                count: 1,
+                firstRepetitionAt: null
             });
 
             let dataBuffer = payload;
 
             // 1. Fetch internal CatchSensor record to check for provisioned key
             const catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
-            
+
             // 2. Encryption Logic
             // Priority: Individual Key (if provisioned) > Global Key
             const individualKey = catchSensor?.isProvisioned ? catchSensor.aesKey : null;
             const globalKey = process.env.AES_SECRET_KEY;
-            
+
             let keyBuffer = null;
             if (individualKey && individualKey.length === 64) {
                 keyBuffer = Buffer.from(individualKey, 'hex');
@@ -318,7 +318,7 @@ const handleProvisioningMessage = async (topic, payload, io) => {
         const decipher = crypto.createDecipheriv('aes-256-ecb', Buffer.from(bootstrapKey), null);
         decipher.setAutoPadding(false);
         const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-        
+
         const individualKeyHex = decrypted.toString('hex').toUpperCase();
         console.log(`MQTT: 🔐 Decrypted new 32-byte individual key for ${deviceId}`);
 
@@ -340,14 +340,14 @@ const handleProvisioningMessage = async (topic, payload, io) => {
         });
 
         console.log(`MQTT: ✅ Device ${deviceId} provisioned with individual key.`);
-        
+
         // Send confirmation back to device so it can delete the bootstrap key
         const resTopic = `catches/${deviceId}/provision/res`;
         // We send "PROV_OK_CONFIRM_32_BYTE_KEY_SYNC" (32 bytes) encrypted with the NEW key
         const cipher = crypto.createCipheriv('aes-256-ecb', Buffer.from(individualKeyHex, 'hex'), null);
         cipher.setAutoPadding(false);
         const confirmation = Buffer.concat([cipher.update(Buffer.from("PROV_OK_CONFIRM_32_BYTE_HANDSHK")), cipher.final()]);
-        
+
         if (globalAedes) {
             globalAedes.publish({
                 topic: resTopic,

@@ -21,7 +21,7 @@ const status = args[1] === 'triggered' ? 0x00 : 0x01; // 0x01 = active, 0x00 = t
 const voltage = parseInt(args[2]) || 4150; // mV
 const rssi = parseInt(args[3]) || 65;
 
-const keyFile = path.resolve(process.cwd(), `melder_${imei}.key`);
+const keyFile = path.resolve(__dirname, `melder_${imei}.key`);
 
 async function runMelder() {
     console.log(`\n🚀 Software Melder Simulator [IMEI: ${imei}]`);
