@@ -65,17 +65,23 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResy
         }
     };
 
-    const handleResync = async (e) => {
+    const handleResync = async (e, action = 'confirm') => {
         e.stopPropagation();
-        if (!window.confirm('Haben Sie die Batterie gewechselt? Der Sicherheitszähler wird nun zurückgesetzt.')) return;
+        
+        if (action === 'confirm' && !window.confirm('Haben Sie die Batterie gewechselt? Der Sicherheitszähler wird nun zurückgesetzt.')) return;
+        if (action === 'reject' && !window.confirm('Wollen Sie diese Warnung ignorieren? Der alte Sicherheitszähler bleibt aktiv.')) return;
         
         try {
             const token = localStorage.getItem('token');
             const res = await fetch(`${API_BASE}/api/catches/${catchSensor.id}/resync`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action })
             });
-            if (res.ok && onResync) onResync(catchSensor.id);
+            if (res.ok && onResync) onResync(catchSensor.id, action);
         } catch (err) {
             console.error('Resync failed:', err);
         }
@@ -124,15 +130,26 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResy
                 </button>
             )}
 
-            {/* BATTERY RESET button — Variant 1 Replay Protection */}
+            {/* BATTERY RESET buttons — Variant 1 Replay Protection */}
             {catchSensor.resyncRequired && (
-                <button
-                    onClick={handleResync}
-                    className="mb-3 flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 bg-amber-500 text-white shadow-md shadow-amber-200 active:bg-amber-600"
-                >
-                    <RefreshCw size={14} />
-                    Batteriewechsel bestätigen
-                </button>
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleResync}
+                        className="mb-3 flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 bg-amber-500 text-white shadow-md shadow-amber-200 active:bg-amber-600"
+                    >
+                        <RefreshCw size={14} />
+                        Batteriewechsel bestätigen
+                    </button>
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleResync(e, 'reject');
+                        }}
+                        className="mb-3 flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 bg-gray-200 text-gray-600 border border-gray-300 hover:bg-gray-300 active:bg-gray-400"
+                    >
+                        Ignorieren
+                    </button>
+                </div>
             )}
 
             {lastUpdate && (
