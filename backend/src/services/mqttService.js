@@ -107,6 +107,8 @@ const connectToBroker = (config, onMessage) => {
 const crypto = require('crypto');
 const MASTER_SALT = process.env.MASTER_SALT || '';
 
+console.log(`MQTT: 🔐 Encryption Init - MASTER_SALT: ${MASTER_SALT ? 'PRESENT (Configured)' : 'MISSING (Handshake mode active)'}`);
+
 /**
  * Derives a 32-byte AES-256 key from an IMEI and the MASTER_SALT.
  */
