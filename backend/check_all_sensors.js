@@ -16,7 +16,7 @@ const sequelize = new Sequelize(
 
 async function check() {
     try {
-        const [results] = await sequelize.query("SELECT id, name, imei, aesKey, isProvisioned, userId FROM CatchSensors");
+        const [results] = await sequelize.query("SELECT id, name, imei, status, batteryPercent, rssi FROM CatchSensors");
         console.log('--- CatchSensors in DB ---');
         console.log(JSON.stringify(results, null, 2));
     } catch (err) {

@@ -326,9 +326,34 @@ const updateCatchSensorData = async (deviceId, data, io) => {
             include: data.type === 'LORAWAN' ? [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] : []
         });
 
+        // If not found by clear IMEI, try matching by Hash (Optional Topic Anonymization)
+        if (!catchSensor && data.type === 'NB-IOT') {
+            const allSensors = await CatchSensor.findAll({ where: { imei: { [require('sequelize').Op.ne]: null } } });
+            const MASTER_SALT = process.env.MASTER_SALT || '';
+            
+            for (const s of allSensors) {
+                const hash = require('crypto').createHash('sha256').update(s.imei + MASTER_SALT).digest('hex').substring(0, 16).toUpperCase();
+                if (hash === deviceId.toUpperCase()) {
+                    catchSensor = s;
+                    console.log(`MQTT: 🕵️‍♂️ Anonymized topic match found! Hash ${deviceId} belongs to IMEI ${s.imei}`);
+                    // Reload with includes if needed
+                    if (data.type === 'LORAWAN') {
+                        catchSensor = await CatchSensor.findByPk(s.id, { include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] });
+                    }
+                    break;
+                }
+            }
+        }
+
         console.log(`MQTT: Search result for ${deviceId}: ${catchSensor ? 'Found' : 'NOT FOUND'}`);
 
         if (!catchSensor) {
+            // If it's a hash, we can't auto-provision because we don't know the real IMEI
+            if (data.type === 'NB-IOT' && deviceId.length === 16 && /^[0-9A-F]+$/.test(deviceId.toUpperCase())) {
+                console.warn(`MQTT: 🛑 Received anonymized message for unknown hash ${deviceId}. Auto-provisioning impossible without clear IMEI.`);
+                return;
+            }
+
             console.log(`MQTT: 🆕 Auto-provisioning new device: ${deviceId}`);
             try {
                 catchSensor = await CatchSensor.create({
