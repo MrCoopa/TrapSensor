@@ -52,8 +52,14 @@ APP_BASE_URL=https://catchsensor.home # Basis-URL für Benachrichtigungen
 ### Interner MQTT Broker (Aedes)
 Für NB-IoT Melder, die direkt mit dem Server kommunizieren.
 ```env
-INTERNAL_MQTT_USER=alex           # Beispiel-Nutzer (bitte anpassen)
-INTERNAL_MQTT_PASS=geheim         # Beispiel-Passwort (bitte anpassen)
+INTERNAL_MQTT_USER=alex           # Benutzername (bitte anpassen)
+INTERNAL_MQTT_PASS=geheim         # Passwort (Verpflichtend!)
+```
+
+### Verschlüsselung (E2E)
+```env
+MASTER_SALT=dein_sehr_langes_geheimnis # Basis für Sensorschlüssel (WICHTIG!)
+AES_SECRET_KEY=...                  # Legacy (wird durch Master Salt ersetzt)
 ```
 
 ### LoRaWAN via The Things Network (TTN)

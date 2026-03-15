@@ -32,6 +32,8 @@ Dein Projekt ist bereits für **Docker** vorbereitet. Das macht den Umzug auf ei
    - Die Weiterleitung von `deine-domain.de` auf den CatchSensor.
    - Den Zugriff auf das Dashboard.
 
+4. **Umgebungsvariablen:** Vergiss nicht, den `MASTER_SALT` und die MQTT-Zugangsdaten in Portainer zu hinterlegen, damit die Verschlüsselung und Authentifizierung funktionieren.
+
 ---
 
 ## 4. Offene Ports (Sicherheit/Firewall)

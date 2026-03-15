@@ -8,10 +8,12 @@ The system listens to MQTT brokers to receive sensor data from CatchSensors.
 ### A. NB-IoT CatchSensors (Internal/External Broker)
 *   **Protocol**: MQTT (TCP/1883)
 *   **Topic**: `catches/{imei}/data`
-*   **Payload Format**: Binary (4 Bytes)
+*   **Payload Format**: Verschlüsselt (16 Bytes AES-256 ECB)
+    *   **Key Derivation**: Der AES-Key wird für jeden Melder individuell aus `SHA256(IMEI + MASTER_SALT)` abgeleitet.
     *   Byte 0: **Status** (0x01 = Active, 0x00 = Triggered/Alarm)
     *   Byte 1-2: **Voltage** (UInt16BE, in mV)
     *   Byte 3: **RSSI** (UInt8, absolute value, e.g., 60 = -60dBm)
+    *   Byte 4-7: **FCnt** (UInt32BE, Message Counter für Replay-Schutz)
 
 ### B. LoRaWAN CatchSensors (The Things Network Integration)
 *   **Protocol**: MQTTS (TLS/8883) via TTN

@@ -171,10 +171,10 @@ Jeder Sensor verschlüswelt seine Daten mit **AES-256 (ECB Mode)**. Der Schlüss
 
 ## 🚀 Key Features
 
-### 🛡️ Security & Reliability
-- **AES-256 Encryption:** Military-grade E2E encryption. Data is encrypted on the sensor and decrypted only at your backend.
-- **Dual Protocol Support:** Native support for **NB-IoT (SIM7020E)** and **LoRaWAN (TTN)**.
-- **Digital Watchdog:** Automated background service monitoring battery health and connection status.
+### 1. Ende-zu-Ende Verschlüsselung (E2EE)
+Jeder Sensor verschlüsselt seine Daten mit **AES-256 (ECB Mode)**. Der individuelle Schlüssel wird deterministisch aus der **IMEI** des Geräts und einem globalen **MASTER_SALT** (SHA-256) abgeleitet.
+- **Vorteil**: Kein komplexer Handshake (TOFU) nötig. Schlüssel sind sofort nach dem Flashen des Salts auf beiden Seiten synchron.
+- **Sicherheit**: Selbst bei Zugriff auf den MQTT-Broker sind die Daten für Dritte unlesbar.
 
 ### 🦌 Professional Hunting Integration
 - **Revierwelt Webhook:** Direct integration with Germany's leading hunting management platform.
@@ -233,7 +233,9 @@ Die App ist unter `http://localhost:5000` erreichbar.
 |---|---|
 | `DB_PASS` | Passwort für die MariaDB. |
 | `JWT_SECRET` | Schlüssel für Nutzer-Tokens. |
-| `INTERNAL_MQTT_PASS` | Passwort für den NB-IoT Broker. |
+| `INTERNAL_MQTT_USER` | Benutzername für den NB-IoT Broker. |
+| `INTERNAL_MQTT_PASS` | Passwort für den NB-IoT Broker (Verpflichtend). |
+| `MASTER_SALT` | Geheimnis zur Berechnung der Sensorschlüssel (WICHTIG). |
 | `FIREBASE_SERVICE_ACCOUNT_B64` | Base64-String der Google Firebase JSON. |
 
 ---
@@ -292,8 +294,9 @@ CatchSensor unterstützt drei Kanäle:
 CatchSensor nutzt eine mehrstufige Sicherheitsarchitektur, um Manipulationen und Daten-Einsicht zu verhindern:
 
 ### 1. Ende-zu-Ende Verschlüsselung (E2EE)
-Jeder Sensor verschlüswelt seine Daten mit **AES-256 (ECB Mode)**. Der Schlüssel (`AES_KEY`) ist nur auf dem Gerät und dem Backend bekannt. 
-- **Vorteil**: Selbst bei Zugriff auf den MQTT-Broker sind die Daten für Dritte unlesbar ("Datensalat").
+Jeder Sensor verschlüsselt seine Daten mit **AES-256 (ECB Mode)**. Der individuelle Schlüssel wird deterministisch aus der **IMEI** des Geräts und einem globalen **MASTER_SALT** (SHA-256) abgeleitet.
+- **Vorteil**: Kein komplexer Handshake (TOFU) nötig. Schlüssel sind sofort nach dem Flashen des Salts auf beiden Seiten synchron.
+- **Sicherheit**: Selbst bei Zugriff auf den MQTT-Broker sind die Daten für Dritte unlesbar.
 
 ### 2. Replay Protection via Message Counter (FCnt)
 Um das Abfangen und Wiederholen (Replay) von Nachrichten zu verhindern, enthält jedes Paket einen **monoton steigenden 4-Byte Zähler**.
