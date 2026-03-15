@@ -123,6 +123,8 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
     try {
         let normalizedData = null;
         let deviceId = null;
+        let catchSensor = null;
+        let realImei = null;
 
         if (pathType === 'NB-IOT') {
             deviceId = topic.split('/')[1];
@@ -163,8 +165,8 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
             // 1. Fetch internal CatchSensor record
             // We search for clear IMEI first, then Hash
-            let catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
-            let realImei = deviceId;
+            catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+            realImei = deviceId;
 
             if (!catchSensor) {
                 // Topic identifier is likely a hash. Scan all sensors to find match.
