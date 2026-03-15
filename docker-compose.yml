@@ -48,7 +48,7 @@ services:
       - FCM_SERVER_KEY=${FCM_SERVER_KEY}
       # Encryption Keys
       - AES_SECRET_KEY=${AES_SECRET_KEY}
-      - BOOTSTRAP_KEY=${BOOTSTRAP_KEY}
+      - MASTER_SALT=${MASTER_SALT}
     depends_on:
       catchsensor_db:
         condition: service_healthy

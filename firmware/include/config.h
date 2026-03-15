@@ -8,8 +8,8 @@
 // ── Security Settings ───────────────────────────────────────────────────────
 #define USE_AES         1                  // Setze auf 1 zum Aktivieren
 #define AES_KEY         "CATCHSENSOR_KEY_32_CHARS_LONG!!!" // Globaler Fallback
-#define BOOTSTRAP_KEY   "BOOTSTRAP_MASTER_KEY_32_CHARS!!!" // Für TOFU Handshake
-#define USE_TOFU        1                  // Enable Trust-On-First-Use Handshake
+#define MASTER_SALT     "CATCHSENSOR_SALT_2026_SECURE_!" // Neu: Für algorithmische Derivierung
+#define USE_TOFU        0                  // Legacy: Trust-On-First-Use deaktiviert
 
 // ── Timing ──────────────────────────────────────────────────────────────────
 #define KEEP_ALIVE_INTERVAL (8 * 60 * 1000) // 8 Minuten (Testweise verkürzt) oder 8h (8*60*60*1000)
