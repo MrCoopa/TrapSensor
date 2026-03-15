@@ -105,8 +105,6 @@ const connectToBroker = (config, onMessage) => {
     return client;
 };
 
-
-const crypto = require('crypto');
 const MASTER_SALT = process.env.MASTER_SALT || '';
 
 console.log(`MQTT: 🔐 Encryption Init - MASTER_SALT: ${MASTER_SALT ? 'PRESENT (Configured)' : 'MISSING (Handshake mode active)'}`);
