@@ -64,23 +64,26 @@ process.on('unhandledRejection', (reason, promise) => {
 // Embedded MQTT Broker (Aedes 0.x — stable)
 const aedes = require('aedes')();
 
-// Authentication (optional — only if env vars are set)
+// Authentication (Mandatory if configured)
 const INTERNAL_MQTT_USER = process.env.INTERNAL_MQTT_USER;
 const INTERNAL_MQTT_PASS = process.env.INTERNAL_MQTT_PASS;
 
 if (INTERNAL_MQTT_USER && INTERNAL_MQTT_PASS) {
+    console.log(`MQTT: 🔐 Authentication ACTIVE (User: ${INTERNAL_MQTT_USER})`);
     aedes.authenticate = function (client, username, password, callback) {
         const authorized = (username === INTERNAL_MQTT_USER && password?.toString() === INTERNAL_MQTT_PASS);
         if (authorized) {
             console.log(`MQTT: ✅ Auth Success: ${client.id}`);
             callback(null, true);
         } else {
-            console.warn(`MQTT: ❌ Auth Failed: ${client.id}`);
+            console.warn(`MQTT: ❌ Auth Failed: ${client.id} (User: ${username || 'none'})`);
             const error = new Error('Auth error');
             error.returnCode = 4;
             callback(error, null);
         }
     };
+} else {
+    console.warn('MQTT: ⚠️ Authentication INACTIVE - No credentials configured in .env!');
 }
 
 // Event logging
