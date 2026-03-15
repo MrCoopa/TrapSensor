@@ -364,15 +364,12 @@ const updateCatchSensorData = async (deviceId, data, io) => {
                 if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt >= 0) {
                     console.warn(`MQTT: ❌ Replay/Old counter detected for ${deviceId}: received=${data.fCnt}, last=${catchSensor.lastFCnt}`);
 
-                    // If counter is significantly lower (e.g. 1 or 2), it's likely a battery reset.
-                    // REFINEMENT: Only trigger resync if the sensor was inactive for at least 15 minutes.
-                    // This prevents an attacker from interrupting an active session with an old replay.
-                    // If counter is exactly 0, it is a definitive battery reset signal.
-                    // We flag it for resync, and a valid high-counter message will "self-heal" the flag.
-                    if (data.fCnt === 0) {
+                    // If counter is significantly lower (e.g. 1-5), it's likely a battery reset.
+                    // This is triggered if the received counter is very low (<= 5) while the stored one is higher.
+                    if (data.fCnt <= 5) {
                         catchSensor.resyncRequired = true;
                         await catchSensor.save();
-                        console.log(`MQTT: 🔄 Battery reset (fCnt 0) detected for ${deviceId}. Flagged for resync.`);
+                        console.log(`MQTT: 🔄 Battery reset (low fCnt ${data.fCnt}) detected for ${deviceId}. Flagged for resync.`);
 
                         // Notify user about resync requirement
                         if (catchSensor.userId) {
