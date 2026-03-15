@@ -10,7 +10,7 @@ require('dotenv').config({ path: envPath });
 
 const MASTER_SALT = process.env.MASTER_SALT || '';
 const DEFAULT_HOST = process.env.DB_HOST || '127.0.0.1';
-const BROKER_URL = process.env.MQTT_BROKER_URL || `mqtt://${DEFAULT_HOST}:1884`;
+const BROKER_URL = process.env.MQTT_BROKER_URL || `mqtt://${DEFAULT_HOST}:1883`;
 const MQTT_USER = process.env.INTERNAL_MQTT_USER;
 const MQTT_PASS = process.env.INTERNAL_MQTT_PASS;
 
