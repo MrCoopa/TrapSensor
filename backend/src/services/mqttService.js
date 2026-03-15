@@ -159,24 +159,41 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             });
 
             let dataBuffer = payload;
+            const MASTER_SALT = process.env.MASTER_SALT || '';
 
-            // 1. Fetch internal CatchSensor record to check for provisioned key
-            const catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+            // 1. Fetch internal CatchSensor record
+            // We search for clear IMEI first, then Hash
+            let catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+            let realImei = deviceId;
+
+            if (!catchSensor) {
+                // Topic identifier is likely a hash. Scan all sensors to find match.
+                const allSensors = await CatchSensor.findAll({ where: { imei: { [Op.ne]: null } } });
+                for (const s of allSensors) {
+                    const hash = crypto.createHash('sha256').update(s.imei + MASTER_SALT).digest('hex').substring(0, 16).toUpperCase();
+                    if (hash === deviceId.toUpperCase()) {
+                        catchSensor = s;
+                        realImei = s.imei;
+                        console.log(`MQTT: 🕵️‍♂️ Anonymized topic match! Hash ${deviceId} -> IMEI ${realImei}`);
+                        break;
+                    }
+                }
+            }
 
             // 2. Encryption Logic
-            // Priority: Derived Key (from IMEI + SALT) > Individual Key (DB) > Global Key
-            const derivedKey = deriveKey(deviceId);
+            // Priority: Derived Key (from REAL IMEI + SALT) > Individual Key (DB) > Global Key
+            const derivedKey = deriveKey(realImei);
             const globalKey = process.env.AES_SECRET_KEY;
             
             let keyBuffer = null;
             if (derivedKey) {
-                console.log(`MQTT: 🔐 Using DERIVED key for ${deviceId} (Master Salt active)`);
+                console.log(`MQTT: 🔐 Using DERIVED key for ${realImei} (Master Salt active)`);
                 keyBuffer = derivedKey;
             } else if (catchSensor?.isProvisioned && catchSensor.aesKey?.length === 64) {
-                console.log(`MQTT: 🔐 Using stored INDIVIDUAL key for ${deviceId}`);
+                console.log(`MQTT: 🔐 Using stored INDIVIDUAL key for ${realImei}`);
                 keyBuffer = Buffer.from(catchSensor.aesKey, 'hex');
             } else if (globalKey && globalKey.length === 32) {
-                console.log(`MQTT: 🔐 Falling back to GLOBAL key for ${deviceId}`);
+                console.log(`MQTT: 🔐 Falling back to GLOBAL key for ${realImei}`);
                 keyBuffer = Buffer.from(globalKey);
             }
 
@@ -186,9 +203,9 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                     const decipher = crypto.createDecipheriv('aes-256-ecb', keyBuffer, null);
                     decipher.setAutoPadding(false);
                     dataBuffer = Buffer.concat([decipher.update(decrypted), decipher.final()]);
-                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${deviceId} using ${derivedKey ? 'DERIVED' : (catchSensor?.isProvisioned ? 'INDIVIDUAL' : 'GLOBAL')} key`);
+                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${realImei} using ${derivedKey ? 'DERIVED' : (catchSensor?.isProvisioned ? 'INDIVIDUAL' : 'GLOBAL')} key`);
                 } catch (decErr) {
-                    console.error(`MQTT: ❌ AES Decryption failed for ${deviceId}:`, decErr.message);
+                    console.error(`MQTT: ❌ AES Decryption failed for ${realImei}:`, decErr.message);
                     return; // Fail if decryption is attempted but fails
                 }
             } else if (payload.length === 8) {
@@ -197,7 +214,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             }
 
             if (dataBuffer.length < 4) {
-                console.error(`MQTT: ⚠️ Invalid payload length (${dataBuffer.length}) for NB-IOT device ${deviceId}`);
+                console.error(`MQTT: ⚠️ Invalid payload length (${dataBuffer.length}) for NB-IOT device ${realImei}`);
                 return;
             }
 
@@ -302,8 +319,8 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
 
 
-        if (normalizedData && deviceId) {
-            await updateCatchSensorData(deviceId, normalizedData, io);
+        if (normalizedData && (deviceId || realImei)) {
+            await updateCatchSensorData(catchSensor || realImei || deviceId, normalizedData, io);
         }
     } catch (err) {
         console.error('MQTT Handler Error:', err);
@@ -319,30 +336,20 @@ const handleProvisioningMessage = async (topic, payload, io) => {
     console.log(`MQTT: 🗝️ DEPRECATED provisioning request from ${deviceId}. Device should use Master Salt derivation instead.`);
 };
 
-const updateCatchSensorData = async (deviceId, data, io) => {
+const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
     try {
-        let catchSensor = await CatchSensor.findOne({
-            where: data.type === 'NB-IOT' ? { imei: deviceId } : { deviceId: deviceId },
-            include: data.type === 'LORAWAN' ? [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] : []
-        });
+        let catchSensor;
+        let deviceId;
 
-        // If not found by clear IMEI, try matching by Hash (Optional Topic Anonymization)
-        if (!catchSensor && data.type === 'NB-IOT') {
-            const allSensors = await CatchSensor.findAll({ where: { imei: { [require('sequelize').Op.ne]: null } } });
-            const MASTER_SALT = process.env.MASTER_SALT || '';
-            
-            for (const s of allSensors) {
-                const hash = require('crypto').createHash('sha256').update(s.imei + MASTER_SALT).digest('hex').substring(0, 16).toUpperCase();
-                if (hash === deviceId.toUpperCase()) {
-                    catchSensor = s;
-                    console.log(`MQTT: 🕵️‍♂️ Anonymized topic match found! Hash ${deviceId} belongs to IMEI ${s.imei}`);
-                    // Reload with includes if needed
-                    if (data.type === 'LORAWAN') {
-                        catchSensor = await CatchSensor.findByPk(s.id, { include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] });
-                    }
-                    break;
-                }
-            }
+        if (typeof deviceIdOrSensor === 'object' && deviceIdOrSensor !== null) {
+            catchSensor = deviceIdOrSensor;
+            deviceId = catchSensor.imei || catchSensor.deviceId;
+        } else {
+            deviceId = deviceIdOrSensor;
+            catchSensor = await CatchSensor.findOne({
+                where: data.type === 'NB-IOT' ? { imei: deviceId } : { deviceId: deviceId },
+                include: data.type === 'LORAWAN' ? [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] : []
+            });
         }
 
         console.log(`MQTT: Search result for ${deviceId}: ${catchSensor ? 'Found' : 'NOT FOUND'}`);
@@ -418,7 +425,8 @@ const updateCatchSensorData = async (deviceId, data, io) => {
                 catchSensor.lastFCnt = data.fCnt;
             }
 
-            catchSensor.imei = deviceId;
+            // ONLY update IMEI if it's currently null. Never overwrite it with a hash or different value.
+            if (!catchSensor.imei && data.type === 'NB-IOT') catchSensor.imei = deviceId;
             catchSensor.status = data.status || 'active';
             catchSensor.batteryVoltage = data.batteryVoltage;
             catchSensor.batteryPercent = data.batteryPercent;

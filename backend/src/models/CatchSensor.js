@@ -83,7 +83,7 @@ const CatchSensor = sequelize.define('CatchSensor', {
         comment: 'Optional Revierwelt Webhook URL'
     },
     lastFCnt: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         defaultValue: 0,
         comment: 'Last received message counter for replay protection'
     },
