@@ -26,7 +26,6 @@ services:
       - APP_BASE_URL=${APP_BASE_URL:-http://localhost:5000}
       - APP_BASE_URL_IP=${APP_BASE_URL_IP}
       - APP_BASE_URL_DNS=${APP_BASE_URL_DNS}
-      - FIREBASE_SERVICE_ACCOUNT_B64=${FIREBASE_SERVICE_ACCOUNT_B64}
       # Internal MQTT Broker Auth
       - INTERNAL_MQTT_USER=${INTERNAL_MQTT_USER}
       - INTERNAL_MQTT_PASS=${INTERNAL_MQTT_PASS}
@@ -49,6 +48,8 @@ services:
       # Encryption Keys
       - AES_SECRET_KEY=${AES_SECRET_KEY}
       - BOOTSTRAP_KEY=${BOOTSTRAP_KEY}
+    volumes:
+      - ./backend/serviceAccountKey.json:/app/serviceAccountKey.json:ro
     depends_on:
       catchsensor_db:
         condition: service_healthy
