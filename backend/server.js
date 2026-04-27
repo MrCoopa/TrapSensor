@@ -33,7 +33,13 @@ const { protect } = require('./src/middleware/authMiddleware');
 const { setupMQTT } = require('./src/services/mqttService');
 const { setupWatchdog } = require('./src/services/watchdogService');
 
+// Swagger Documentation
+const swaggerUi = require('swagger-ui-express');
+const swaggerSpecs = require('./src/config/swagger');
+
 const app = express();
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs));
+
 app.set('trust proxy', 1); // Trust the first proxy (Nginx Proxy Manager)
 const https = require('https');
 const fs = require('fs');

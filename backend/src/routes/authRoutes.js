@@ -11,4 +11,3 @@ router.put('/update-profile', protect, updateProfile);
 
 
 module.exports = router;
-
