@@ -178,7 +178,16 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResy
 
                     <div className="flex items-center space-x-2 text-gray-500">
                         <div className="flex items-center space-x-2">
-                            <SignalIndicator rsrp={isLoRa ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rsrp} snr={isLoRa ? catchSensor.lorawanCatchSensor?.snr : undefined} type={catchSensor.type} barWidth="w-1" barHeight="h-4" className="mb-0.5" />
+                            <SignalIndicator 
+                                rsrp={isLoRa ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rsrp} 
+                                rsrq={!isLoRa ? catchSensor.rsrq : undefined}
+                                sinr={!isLoRa ? catchSensor.sinr : undefined}
+                                snr={isLoRa ? catchSensor.lorawanCatchSensor?.snr : undefined} 
+                                type={catchSensor.type} 
+                                barWidth="w-1" 
+                                barHeight="h-4" 
+                                className="mb-0.5" 
+                            />
                             <div className="text-sm font-medium text-gray-500 leading-none mt-0.5">
                                 {(isLoRa ? (catchSensor.lorawanCatchSensor?.loraRssi || 0) : (catchSensor.rsrp || 0))} dBm
                             </div>

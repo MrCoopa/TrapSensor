@@ -130,6 +130,8 @@ void loop() {
         uint16_t voltageMv = readBatteryVoltage();
         uint8_t status = digitalRead(PIN_REED) == LOW ? 0x00 : 0x01; // 0x00=triggered
         uint8_t rsrpAbs = 60; 
+        uint8_t rsrqAbs = 15;
+        int8_t sinrSigned = 0;
 
         // 3. Encrypt Payload if enabled
         char payloadHex[65]; // Support up to 64 hex chars (32 bytes)
@@ -191,6 +193,9 @@ void loop() {
             block[6] = (counter >> 8) & 0xFF;
             block[7] = counter & 0xFF;
 
+            block[8] = rsrqAbs;
+            block[9] = (uint8_t)sinrSigned;
+
             // Use aes128 or aes256 based on key size
             if (provisioned) {
                 // Here we might need aes128_encrypt if we only stored 16 bytes
@@ -205,8 +210,8 @@ void loop() {
             }
             payloadLen = 32;
         } else {
-            sprintf(payloadHex, "%02X%04X%02X", status, voltageMv, rsrpAbs);
-            payloadLen = 8;
+            sprintf(payloadHex, "%02X%04X%02X%02X%02X", status, voltageMv, rsrpAbs, rsrqAbs, (uint8_t)sinrSigned);
+            payloadLen = 12;
         }
 
         // 4. Send Data via MQTT
@@ -214,7 +219,7 @@ void loop() {
         String topic = "catches/" + imei + "/data";
 
         if (sim7020_connectToNetwork()) {
-            rsrpAbs = sim7020_getRSRP();
+            sim7020_getSignalStats(rsrpAbs, rsrqAbs, sinrSigned);
             if (sim7020_mqttConnect(MQTT_HOST, MQTT_PORT)) {
                 sim7020_mqttPublish(topic.c_str(), payloadHex, payloadLen);
                 sim7020_mqttDisconnect();

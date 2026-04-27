@@ -48,6 +48,14 @@ const CatchSensor = sequelize.define('CatchSensor', {
         type: DataTypes.INTEGER,
         allowNull: true,
     },
+    rsrq: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    sinr: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
     lastSeen: {
         type: DataTypes.DATE,
         allowNull: true,

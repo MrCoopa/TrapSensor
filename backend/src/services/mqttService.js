@@ -230,12 +230,21 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 fCnt = dataBuffer.readUInt32BE(4);
             }
 
+            let rsrq = null;
+            let sinr = null;
+            if (dataBuffer.length >= 10) {
+                rsrq = -dataBuffer.readUInt8(8); // Store as negative dB
+                sinr = dataBuffer.readInt8(9);  // Store as signed dB
+            }
+
             normalizedData = {
                 type: 'NB-IOT',
                 status: statusByte === 0x01 ? 'active' : 'triggered',
                 batteryVoltage: voltage,
                 batteryPercent: voltageToBatteryPercent(voltage),
                 rsrp: -rsrp,
+                rsrq: rsrq,
+                sinr: sinr,
                 fCnt: fCnt,
                 lastReading: new Date()
             };
@@ -433,6 +442,8 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
             catchSensor.batteryVoltage = data.batteryVoltage;
             catchSensor.batteryPercent = data.batteryPercent;
             catchSensor.rsrp = data.rsrp;
+            catchSensor.rsrq = data.rsrq;
+            catchSensor.sinr = data.sinr;
             catchSensor.lastSeen = new Date();
             await catchSensor.save();
         } else {
@@ -469,7 +480,9 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
             status: data.status,
             batteryPercent: data.batteryPercent,
             rsrp: data.rsrp,
-            snr: data.snr,
+            rsrq: data.rsrq,
+            sinr: data.sinr,
+            snr: data.snr || data.sinr,
             gatewayId: data.gatewayId,
             gatewayCount: data.gatewayCount,
             fCnt: data.fCnt,

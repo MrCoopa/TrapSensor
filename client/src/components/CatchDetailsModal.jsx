@@ -52,12 +52,19 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                             <div className="text-[10px] text-gray-400 font-medium">{((catchSensor.batteryVoltage || 0) / 1000).toFixed(2).replace('.', ',')} V</div>
                         </div>
                         <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col justify-center">
-                            <div className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
-                                <SignalIndicator rsrp={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rsrp} snr={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.snr : undefined} type={catchSensor.type} className="mr-2" /> Signal
+                             <div className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
+                                <SignalIndicator 
+                                    rsrp={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rsrp} 
+                                    rsrq={catchSensor.type === 'NB-IOT' ? catchSensor.rsrq : undefined}
+                                    sinr={catchSensor.type === 'NB-IOT' ? catchSensor.sinr : undefined}
+                                    snr={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.snr : undefined} 
+                                    type={catchSensor.type} 
+                                    className="mr-2" 
+                                /> Signal
                             </div>
                             <div className="flex flex-col">
                                 <div className="text-lg font-bold text-gray-900 leading-none">{catchSensor.type === 'LORAWAN' ? (catchSensor.lorawanCatchSensor?.loraRssi || 0) : (catchSensor.rsrp || 0)} dBm</div>
-                                {catchSensor.lorawanCatchSensor && (
+                                 {catchSensor.lorawanCatchSensor && (
                                     <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
                                         <div className="flex flex-col">
                                             <span className="text-[8px] uppercase text-gray-400 font-bold">SNR</span>
@@ -81,6 +88,18 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                                 <span className="text-[9px] font-bold text-gray-700 truncate">{catchSensor.lorawanCatchSensor.gatewayId}</span>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+                                {catchSensor.type === 'NB-IOT' && (catchSensor.rsrq != null || catchSensor.sinr != null) && (
+                                    <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase text-gray-400 font-bold">RSRQ</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.rsrq != null ? catchSensor.rsrq + ' dB' : 'N/A'}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase text-gray-400 font-bold">SINR</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.sinr != null ? catchSensor.sinr + ' dB' : 'N/A'}</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -120,10 +139,33 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                     <div className="flex flex-1 items-center gap-3 overflow-x-auto custom-scrollbar pb-1">
                                         {/* Signal (RSSI) */}
                                         <div className="flex items-center space-x-2 shrink-0">
-                                            <SignalIndicator rsrp={reading.rsrp} snr={reading.snr} type={catchSensor.type} />
+                                            <SignalIndicator 
+                                                rsrp={reading.rsrp} 
+                                                rsrq={catchSensor.type === 'NB-IOT' ? reading.rsrq : undefined}
+                                                sinr={catchSensor.type === 'NB-IOT' ? reading.sinr : undefined}
+                                                snr={reading.snr} 
+                                                type={catchSensor.type} 
+                                            />
                                             <span className="text-[12px] font-black text-gray-500 leading-none">{reading.rsrp || 0} dBm</span>
                                         </div>
 
+                                        {/* Extended Metadata (NB-IoT only) */}
+                                        {catchSensor.type === 'NB-IOT' && (reading.rsrq != null || reading.sinr != null) && (
+                                            <>
+                                                {reading.rsrq != null && (
+                                                    <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
+                                                        <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">RSRQ</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.rsrq} dB</span>
+                                                    </div>
+                                                )}
+                                                {reading.sinr != null && (
+                                                    <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
+                                                        <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">SINR</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.sinr} dB</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                         {/* Extended Metadata (LoRaWAN only) */}
                                         {catchSensor.type === 'LORAWAN' && (reading.snr !== undefined || reading.spreadingFactor) && (
                                             <>

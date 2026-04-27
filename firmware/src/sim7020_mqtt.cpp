@@ -47,6 +47,38 @@ bool sim7020_connectToNetwork() {
     return true;
 }
 
+void sim7020_getSignalStats(uint8_t &rsrp, uint8_t &rsrq, int8_t &sinr) {
+    SIM_SERIAL.println("AT+CENG?");
+    delay(200);
+    if (SIM_SERIAL.available()) {
+        String res = SIM_SERIAL.readString();
+        // Format: +CENG: 0,"earfcn,pci,rsrp,rsrq,snr,ecl"
+        int quote = res.indexOf("\"");
+        if (quote != -1) {
+            String stats = res.substring(quote + 1, res.lastIndexOf("\""));
+            // Split by comma
+            int comma1 = stats.indexOf(",");
+            int comma2 = stats.indexOf(",", comma1 + 1);
+            int comma3 = stats.indexOf(",", comma2 + 1);
+            int comma4 = stats.indexOf(",", comma3 + 1);
+            int comma5 = stats.indexOf(",", comma4 + 1);
+
+            if (comma3 != -1 && comma4 != -1) {
+                rsrp = (uint8_t)abs(stats.substring(comma2 + 1, comma3).toInt());
+                rsrq = (uint8_t)abs(stats.substring(comma3 + 1, comma4).toInt());
+                if (comma5 != -1) {
+                    sinr = (int8_t)stats.substring(comma4 + 1, comma5).toInt();
+                }
+                return;
+            }
+        }
+    }
+    // Fallback to CSQ if CENG fails
+    rsrp = sim7020_getRSRP();
+    rsrq = 15; // Unknown
+    sinr = 0;  // Unknown
+}
+
 uint8_t sim7020_getRSRP() {
     SIM_SERIAL.println("AT+CSQ");
     delay(100);
@@ -55,9 +87,8 @@ uint8_t sim7020_getRSRP() {
         int colon = res.indexOf(":");
         if (colon != -1) {
             int rssiVal = res.substring(colon + 2, res.indexOf(",")).toInt();
-            // CSQ to dBm: 0=-113, 1=-111, ..., 31=-51
-            if (rssiVal == 99) return 99; // Unknown
-            return (uint8_t)(113 - (rssiVal * 2)); // Return absolute dBm e.g. 70
+            if (rssiVal == 99) return 99;
+            return (uint8_t)(113 - (rssiVal * 2));
         }
     }
     return 60;

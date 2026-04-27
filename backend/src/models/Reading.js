@@ -36,6 +36,14 @@ const Reading = sequelize.define('Reading', {
         type: DataTypes.INTEGER,
         allowNull: true,
     },
+    rsrq: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    sinr: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
     timestamp: {
         type: DataTypes.DATE,
         defaultValue: DataTypes.NOW,

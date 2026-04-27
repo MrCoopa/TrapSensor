@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SignalIndicator = ({ rsrp, snr, type = 'NB-IOT', className = "", barWidth = "w-0.5", barHeight = "h-3" }) => {
+const SignalIndicator = ({ rsrp, rsrq, sinr, snr, type = 'NB-IOT', className = "", barWidth = "w-0.5", barHeight = "h-3" }) => {
 
     const getBars = (r, s, t) => {
         if (!r || r === 0) return 0;
@@ -21,13 +21,24 @@ const SignalIndicator = ({ rsrp, snr, type = 'NB-IOT', className = "", barWidth 
 
             return 0; // Out of range
         } else {
-            // NB-IoT ranges (absolute values logic)
-            const absR = Math.abs(r);
-            if (absR <= 75) return 4;
-            if (absR <= 90) return 3;
-            if (absR <= 100) return 2;
-            if (absR <= 110) return 1;
-            return 0;
+            // NB-IoT combined logic based on RSRP, RSRQ, and SINR
+            const rVal = Number(r);
+            const qVal = rsrq != null ? Number(rsrq) : null;
+            const sVal = sinr != null ? Number(sinr) : null;
+
+            const getGrade = (val, thresholds) => {
+                if (val == null) return 4; // Ignore if missing
+                if (val >= thresholds[0]) return 4;
+                if (val >= thresholds[1]) return 3;
+                if (val >= thresholds[2]) return 2;
+                return 1;
+            };
+
+            const gradeRSRP = getGrade(rVal, [-80, -90, -100]);
+            const gradeRSRQ = getGrade(qVal, [-10, -15, -20]);
+            const gradeSINR = getGrade(sVal, [20, 13, 0]);
+
+            return Math.min(gradeRSRP, gradeRSRQ, gradeSINR);
         }
     };
 
@@ -41,11 +52,11 @@ const SignalIndicator = ({ rsrp, snr, type = 'NB-IOT', className = "", barWidth 
             if (b === 1) return 'bg-orange-500';
             return 'bg-red-500';
         } else {
-            const absR = Math.abs(r);
-            if (absR <= 75) return 'bg-green-600';
-            if (absR <= 90) return 'bg-lime-500';
-            if (absR <= 105) return 'bg-yellow-500';
-            return 'bg-red-500';
+            if (b === 4) return 'bg-green-600';
+            if (b === 3) return 'bg-lime-500';
+            if (b === 2) return 'bg-yellow-500';
+            if (b === 1) return 'bg-red-500';
+            return 'bg-gray-200';
         }
     };
 
@@ -54,7 +65,7 @@ const SignalIndicator = ({ rsrp, snr, type = 'NB-IOT', className = "", barWidth 
 
     const tooltipText = type === 'LORAWAN'
         ? `Signal: ${rsrp || 'N/A'} dBm, Qualität (SNR): ${snr != null ? Number(snr).toFixed(1) : 'N/A'} dB`
-        : `Signalstärke: ${rsrp || 'N/A'} dBm`;
+        : `Signal: ${rsrp || 'N/A'} dBm, RSRQ: ${rsrq != null ? rsrq + ' dB' : 'N/A'}, SINR: ${sinr != null ? sinr + ' dB' : 'N/A'}`;
 
     return (
         <div
