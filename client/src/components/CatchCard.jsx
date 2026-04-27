@@ -4,11 +4,25 @@ import SignalIndicator from './SignalIndicator';
 import API_BASE from '../apiConfig';
 
 const formatTimeAgo = (date) => {
-    const diff = Math.floor((new Date() - new Date(date)) / 1000 / 60);
-    if (diff < 1) return 'Gerade eben';
-    if (diff < 60) return `Vor ${diff} Min`;
-    if (diff < 1440) return `Vor ${Math.floor(diff / 60)} Std`;
-    return 'Gestern';
+    if (!date) return 'Nie';
+    const d = new Date(date);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now - d) / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInMinutes < 1) return 'Gerade eben';
+    if (diffInMinutes < 60) return `Vor ${diffInMinutes} Min`;
+    if (diffInHours < 24) return `Vor ${diffInHours} Std`;
+    if (diffInDays === 1) return 'Gestern';
+    if (diffInDays < 7) return `Vor ${diffInDays} Tagen`;
+    
+    return d.toLocaleDateString('de-DE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: '2-digit' 
+    });
 };
 
 const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResync }) => {
