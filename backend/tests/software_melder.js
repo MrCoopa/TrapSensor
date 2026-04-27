@@ -37,7 +37,7 @@ const args = process.argv.slice(2);
 const imei = args[0] || 'SIM_IMEI_123456';
 const status = args[1] === 'triggered' ? 0x00 : 0x01; // 0x01 = active, 0x00 = triggered
 const voltage = parseInt(args[2]) || 4150; // mV
-const rssi = parseInt(args[3]) || 65;
+const rsrp = parseInt(args[3]) || 65;
 
 const fCntFile = path.resolve(__dirname, `melder_${imei}.fCnt`);
 
@@ -65,7 +65,7 @@ async function runMelder() {
         console.log('🔐 Derived individual key for this session (No handshake needed)');
 
         // 2. Data Reporting Flow
-        console.log(`\n📊 Preparing Data Report [Status: ${status === 0 ? 'TRIGGERED' : 'ACTIVE'}, Volt: ${voltage}mV, RSSI: ${rssi}]`);
+        console.log(`\n📊 Preparing Data Report [Status: ${status === 0 ? 'TRIGGERED' : 'ACTIVE'}, Volt: ${voltage}mV, RSRP: ${rsrp}]`);
 
         let fCnt = 0;
         if (fs.existsSync(fCntFile)) {
@@ -77,7 +77,7 @@ async function runMelder() {
         const data = Buffer.alloc(16);
         data.writeUInt8(status, 0);
         data.writeUInt16BE(voltage, 1);
-        data.writeUInt8(rssi, 3);
+        data.writeUInt8(rsrp, 3);
         data.writeUInt32BE(fCnt, 4);
 
         const cipher = crypto.createCipheriv('aes-256-ecb', individualKey, null);

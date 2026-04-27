@@ -32,7 +32,7 @@ const Reading = sequelize.define('Reading', {
         type: DataTypes.INTEGER,
         allowNull: true,
     },
-    rssi: {
+    rsrp: {
         type: DataTypes.INTEGER,
         allowNull: true,
     },

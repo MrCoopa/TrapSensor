@@ -10,7 +10,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env') });
         if (s) {
             console.log(`Sensor 5555555555:`);
             console.log(`  Last Seen: ${s.lastSeen}`);
-            console.log(`  RSSI: ${s.rssi}`);
+            console.log(`  RSRP: ${s.rsrp}`);
             console.log(`  Battery: ${s.batteryVoltage}mV (${s.batteryPercent}%)`);
             console.log(`  Last fCnt: ${s.lastFCnt}`);
         } else {

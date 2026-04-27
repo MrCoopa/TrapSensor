@@ -222,7 +222,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
             const statusByte = dataBuffer.readUInt8(0);
             const voltage = dataBuffer.readUInt16BE(1);
-            const rssi = dataBuffer.readUInt8(3);
+            const rsrp = dataBuffer.readUInt8(3);
 
             // Extract Counter from bytes 4-7 (UInt32BE) if payload is 16 bytes
             let fCnt = 0;
@@ -235,7 +235,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 status: statusByte === 0x01 ? 'active' : 'triggered',
                 batteryVoltage: voltage,
                 batteryPercent: voltageToBatteryPercent(voltage),
-                rssi: -rssi,
+                rsrp: -rsrp,
                 fCnt: fCnt,
                 lastReading: new Date()
             };
@@ -293,7 +293,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
             }
 
             // Extract Metadata
-            const rssi = uplink.rx_metadata?.[0]?.rssi || 0;
+            const rsrp = uplink.rx_metadata?.[0]?.rssi || 0;
             const snr = uplink.rx_metadata?.[0]?.snr || 0;
             const gatewayId = uplink.rx_metadata?.[0]?.gateway_ids?.gateway_id || 'unknown';
             const gatewayCount = uplink.rx_metadata?.length || 1;
@@ -305,7 +305,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 type: 'LORAWAN',
                 status: status, // Standardized key
                 batteryPercent,
-                rssi,
+                rsrp,
                 snr,
                 gatewayId,
                 gatewayCount,
@@ -432,7 +432,7 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
             catchSensor.status = data.status || 'active';
             catchSensor.batteryVoltage = data.batteryVoltage;
             catchSensor.batteryPercent = data.batteryPercent;
-            catchSensor.rssi = data.rssi;
+            catchSensor.rsrp = data.rsrp;
             catchSensor.lastSeen = new Date();
             await catchSensor.save();
         } else {
@@ -447,7 +447,7 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
 
             await LoraMetadata.upsert({
                 catchSensorId: catchSensor.id,
-                loraRssi: data.rssi,
+                loraRssi: data.rsrp,
                 snr: data.snr,
                 spreadingFactor: data.spreadingFactor,
                 gatewayId: data.gatewayId,
@@ -468,7 +468,7 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
             type: data.status === 'triggered' ? 'alarm' : 'status',
             status: data.status,
             batteryPercent: data.batteryPercent,
-            rssi: data.rssi,
+            rsrp: data.rsrp,
             snr: data.snr,
             gatewayId: data.gatewayId,
             gatewayCount: data.gatewayCount,

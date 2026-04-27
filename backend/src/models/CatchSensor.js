@@ -44,7 +44,7 @@ const CatchSensor = sequelize.define('CatchSensor', {
         type: DataTypes.INTEGER,
         allowNull: true,
     },
-    rssi: {
+    rsrp: {
         type: DataTypes.INTEGER,
         allowNull: true,
     },

@@ -99,7 +99,7 @@ Die App ist unter `http://localhost:5000` erreichbar.
 - **Datenstruktur (innerhalb des Blocks)**:
     - Byte 0: `Status` (0x01=Ok, 0x00=Alarm)
     - Byte 1-2: `Voltage` (mV, UInt16BE)
-    - Byte 3: `RSSI` (Absoluter Wert)
+    - Byte 3: `RSRP` (Absoluter Wert)
     - Byte 4-7: **Message Counter (FCnt)** (UInt32BE) - *Nur bei Verschlüsselung.*
 
 ### 2. REST API (Backend)
@@ -147,27 +147,16 @@ Jeder Sensor verschlüswelt seine Daten mit **AES-256 (ECB Mode)**. Der Schlüss
 - **Vorteil**: Selbst bei Zugriff auf den MQTT-Broker sind die Daten für Dritte unlesbar ("Datensalat").
 
 ### 2. Replay Protection via Message Counter (FCnt)
-# 🦊 CatchSensor: Professional IoT Trap Monitoring
+Um das Abfangen und Wiederholen (Replay) von Nachrichten zu verhindern, enthält jedes Paket einen **monoton steigenden 4-Byte Zähler**.
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)]()
-[![License](https://img.shields.io/badge/license-ISC-green.svg)]()
-[![Platform](https://img.shields.io/badge/platform-NB--IoT%20%7C%20LoRaWAN-orange.svg)]()
-[![Security](https://img.shields.io/badge/security-AES--256-red.svg)]()
+- **Logik**: Das Backend akzeptiert nur Nachrichten, deren Zähler (`FCnt`) größer ist als der letzte gespeicherte Wert.
+- **Persistence**: Der Zähler wird auf dem Gerät in den **STM32 Backup-Registern** gespeichert. Er überlebt den Deep Sleep, ohne den Flash-Speicher zu verschleißen.
 
-**CatchSensor** is a production-ready, self-hosted IoT ecosystem designed for professional trap monitoring. It is specifically optimized for **predator hunting (Raubwildjagd)** and **pest control**, providing 24/7 legal security and reliability in the field.
+### 3. Battery Reset Handling (Manual Resync)
+Wenn die Batterie gewechselt wird, startet der Zähler im Gerät wieder bei `0`. 
+- **Verfahren**: Das Backend erkennt den Zähler-Sprung auf `0` und blockiert den Zugriff (Flag: `resyncRequired`). 
+- **Lösung**: Der Nutzer muss den Batteriewechsel im Dashboard manuell bestätigen, um den Zähler im Backend zurückzusetzen.
 
----
-
-## 📖 Table of Contents
-1. [Key Features](#-key-features)
-2. [System Architecture](#️-system-architecture)
-3. [Installation Guide (DE)](#-installation-guide-de)
-4. [System Interfaces (Schnittstellen)](#-system-interfaces-schnittstellen)
-5. [Notification Engine](#-notification-engine)
-6. [Firmware & Hardware](#-firmware--hardware)
-7. [Security (AES-256)](#-security-aes-256)
-
----
 
 ## 🚀 Key Features
 
@@ -250,7 +239,7 @@ Die App ist unter `http://localhost:5000` erreichbar.
 - **Datenstruktur (innerhalb des Blocks)**:
     - Byte 0: `Status` (0x01=Ok, 0x00=Alarm)
     - Byte 1-2: `Voltage` (mV, UInt16BE)
-    - Byte 3: `RSSI` (Absoluter Wert)
+    - Byte 3: `RSRP` (Absoluter Wert)
     - Byte 4-7: **Message Counter (FCnt)** (UInt32BE) - *Nur bei Verschlüsselung.*
 
 ### 2. REST API (Backend)

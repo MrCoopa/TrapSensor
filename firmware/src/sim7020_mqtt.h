@@ -7,7 +7,7 @@ void sim7020_powerUp(int pwrPin);
 void sim7020_powerDown(int pwrPin);
 String sim7020_getIMEI();
 bool sim7020_connectToNetwork();
-uint8_t sim7020_getRSSI();
+uint8_t sim7020_getRSRP();
 bool sim7020_mqttConnect(const char* host, int port);
 void sim7020_mqttPublish(const char* topic, const char* payloadHex, int len);
 void sim7020_mqttDisconnect();

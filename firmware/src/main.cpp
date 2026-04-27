@@ -129,7 +129,7 @@ void loop() {
         // 2. Read Sensors
         uint16_t voltageMv = readBatteryVoltage();
         uint8_t status = digitalRead(PIN_REED) == LOW ? 0x00 : 0x01; // 0x00=triggered
-        uint8_t rssiAbs = 60; 
+        uint8_t rsrpAbs = 60; 
 
         // 3. Encrypt Payload if enabled
         char payloadHex[65]; // Support up to 64 hex chars (32 bytes)
@@ -184,7 +184,7 @@ void loop() {
             block[0] = status;
             block[1] = (voltageMv >> 8) & 0xFF;
             block[2] = voltageMv & 0xFF;
-            block[3] = rssiAbs;
+            block[3] = rsrpAbs;
             
             block[4] = (counter >> 24) & 0xFF;
             block[5] = (counter >> 16) & 0xFF;
@@ -205,7 +205,7 @@ void loop() {
             }
             payloadLen = 32;
         } else {
-            sprintf(payloadHex, "%02X%04X%02X", status, voltageMv, rssiAbs);
+            sprintf(payloadHex, "%02X%04X%02X", status, voltageMv, rsrpAbs);
             payloadLen = 8;
         }
 
@@ -214,7 +214,7 @@ void loop() {
         String topic = "catches/" + imei + "/data";
 
         if (sim7020_connectToNetwork()) {
-            rssiAbs = sim7020_getRSSI();
+            rsrpAbs = sim7020_getRSRP();
             if (sim7020_mqttConnect(MQTT_HOST, MQTT_PORT)) {
                 sim7020_mqttPublish(topic.c_str(), payloadHex, payloadLen);
                 sim7020_mqttDisconnect();

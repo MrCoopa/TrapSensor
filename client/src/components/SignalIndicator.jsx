@@ -1,6 +1,6 @@
 import React from 'react';
 
-const SignalIndicator = ({ rssi, snr, type = 'NB-IOT', className = "", barWidth = "w-0.5", barHeight = "h-3" }) => {
+const SignalIndicator = ({ rsrp, snr, type = 'NB-IOT', className = "", barWidth = "w-0.5", barHeight = "h-3" }) => {
 
     const getBars = (r, s, t) => {
         if (!r || r === 0) return 0;
@@ -49,12 +49,12 @@ const SignalIndicator = ({ rssi, snr, type = 'NB-IOT', className = "", barWidth 
         }
     };
 
-    const bars = getBars(rssi, snr, type);
-    const colorClass = getColorClass(bars, rssi, snr, type);
+    const bars = getBars(rsrp, snr, type);
+    const colorClass = getColorClass(bars, rsrp, snr, type);
 
     const tooltipText = type === 'LORAWAN'
-        ? `Signal: ${rssi || 'N/A'} dBm, Qualität (SNR): ${snr != null ? Number(snr).toFixed(1) : 'N/A'} dB`
-        : `Signalstärke: ${rssi || 'N/A'} dBm`;
+        ? `Signal: ${rsrp || 'N/A'} dBm, Qualität (SNR): ${snr != null ? Number(snr).toFixed(1) : 'N/A'} dB`
+        : `Signalstärke: ${rsrp || 'N/A'} dBm`;
 
     return (
         <div

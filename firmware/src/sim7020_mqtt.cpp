@@ -47,7 +47,7 @@ bool sim7020_connectToNetwork() {
     return true;
 }
 
-uint8_t sim7020_getRSSI() {
+uint8_t sim7020_getRSRP() {
     SIM_SERIAL.println("AT+CSQ");
     delay(100);
     if (SIM_SERIAL.available()) {
