@@ -21,24 +21,30 @@ const SignalIndicator = ({ rsrp, rsrq, sinr, snr, type = 'NB-IOT', className = "
 
             return 0; // Out of range
         } else {
-            // NB-IoT combined logic based on RSRP, RSRQ, and SINR
+            // NB-IoT stability-based logic
+            // Stable: RSRP > -100 & SINR > 3
+            // Poor: -110 < RSRP < -100 & -3 < SINR < 3
+            // Failure: RSRP < -115 or SINR < -3
             const rVal = Number(r);
-            const qVal = rsrq != null ? Number(rsrq) : null;
             const sVal = sinr != null ? Number(sinr) : null;
 
-            const getGrade = (val, thresholds) => {
-                if (val == null) return 4; // Ignore if missing
-                if (val >= thresholds[0]) return 4;
-                if (val >= thresholds[1]) return 3;
-                if (val >= thresholds[2]) return 2;
+            const getBarsCombined = (rsrp, snr) => {
+                if (rsrp == null) return 0;
+                
+                // 4 Bars: Very Stable
+                if (rsrp >= -90 && (snr == null || snr >= 10)) return 4;
+                
+                // 3 Bars: Stable (User definition: RSRP > -100 & SNR > 3)
+                if (rsrp >= -100 && (snr == null || snr >= 3)) return 3;
+                
+                // 2 Bars: Poor Stability (User definition: > -110 & > -3)
+                if (rsrp >= -110 && (snr == null || snr >= -3)) return 2;
+                
+                // 1 Bar: High Failure Probability
                 return 1;
             };
 
-            const gradeRSRP = getGrade(rVal, [-80, -90, -100]);
-            const gradeRSRQ = getGrade(qVal, [-10, -15, -20]);
-            const gradeSINR = getGrade(sVal, [20, 13, 0]);
-
-            return Math.min(gradeRSRP, gradeRSRQ, gradeSINR);
+            return getBarsCombined(rVal, sVal);
         }
     };
 
@@ -54,8 +60,8 @@ const SignalIndicator = ({ rsrp, rsrq, sinr, snr, type = 'NB-IOT', className = "
         } else {
             if (b === 4) return 'bg-green-600';
             if (b === 3) return 'bg-lime-500';
-            if (b === 2) return 'bg-yellow-500';
-            if (b === 1) return 'bg-red-500';
+            if (b === 2) return 'bg-orange-500'; // Poor
+            if (b === 1) return 'bg-red-500';    // Critical
             return 'bg-gray-200';
         }
     };
