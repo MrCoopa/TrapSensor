@@ -44,7 +44,7 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResy
             border: 'border-l-[6px] border-l-green-600',
             bg: 'bg-green-50/50',
             text: 'text-green-600',
-            label: 'ONLINE',
+            label: '✅ ONLINE',
             timeColor: 'text-gray-400'
         },
         inactive: {
@@ -58,7 +58,7 @@ const CatchCard = ({ catchSensor, onViewHistory, isShared, onAcknowledge, onResy
             border: 'border-l-[6px] border-l-red-600',
             bg: 'bg-red-50/80',
             text: 'text-red-600',
-            label: 'FANG GEMELDET!',
+            label: '❌ FANG!',
             timeColor: 'text-gray-400',
         },
     };

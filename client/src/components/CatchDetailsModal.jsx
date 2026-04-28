@@ -116,7 +116,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                 {/* Header: Status & Date */}
                                 <div className="flex justify-between items-center mb-3">
                                     <p className={`font-black text-xs tracking-widest uppercase ${reading.status === 'triggered' ? 'text-red-600' : 'text-green-600'}`}>
-                                        {reading.status === 'triggered' ? '⚡ FANG!' : '✔️ ONLINE'}
+                                        {reading.status === 'triggered' ? '❌ FANG!' : '✅ ONLINE'}
                                     </p>
                                     <p className="text-[10px] text-gray-400 font-medium">
                                         {new Date(reading.timestamp).toLocaleString('de-DE')}

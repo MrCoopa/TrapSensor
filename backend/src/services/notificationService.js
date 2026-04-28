@@ -62,7 +62,7 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
         let messageText = customMessage;
 
         if (type === 'ALARM') {
-            notificationTitle = `Fang! - Melder "${sensorName}"`;
+            notificationTitle = `❌ Fang! - Melder "${sensorName}"`;
             if (!messageText) messageText = `Melder "${sensorName}" hat ausgelöst. Bitte die Falle kontrollieren.`;
         } else if (type === 'LOW_BATTERY') {
             const voltStr = catchSensor.batteryVoltage ? `${(catchSensor.batteryVoltage / 1000).toFixed(2).replace('.', ',')}V` : '---V';
