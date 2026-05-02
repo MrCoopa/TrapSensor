@@ -195,7 +195,7 @@ app.use((req, res, next) => {
 // Middleware to handle SPA/PWA routing (serves index.html for non-API GET requests)
 app.use((req, res, next) => {
     // Only handle GET requests that don't start with /api, aren't /status, and aren't root
-    if (req.method !== 'GET' || req.url.startsWith('/api') || req.url === '/status' || req.url === '/') {
+    if (req.method !== 'GET' || req.url.startsWith('/api') || req.url === '/status' || req.url === '/test-melder' || req.url === '/') {
         return next();
     }
 
