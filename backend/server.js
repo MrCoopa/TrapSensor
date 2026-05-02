@@ -729,14 +729,32 @@ async function startServer() {
         } catch (error) {
             console.error('Database Sync Error:', error.message);
             if (error.message.includes('Too many keys')) {
-            console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected on some tables (likely PushSubscriptions).');
-            console.warn('⚠️  Proceeding WITHOUT sync to allow server startup. PLEASE RUN THE CLEANUP SCRIPT!');
-            try {
-                await sequelize.sync(); 
-            } catch (fError) {
-                console.error('⚠️  Basic sync also failed, but continuing startup...');
-            }
-        } else {
+                console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected (likely PushSubscriptions).');
+                console.warn('⚠️  Attempting AUTOMATIC cleanup of redundant indexes...');
+                
+                try {
+                    // 1. Find redundant indexes
+                    const [results] = await sequelize.query('SHOW INDEX FROM PushSubscriptions');
+                    const indexesToDrop = results
+                        .filter(idx => idx.Key_name !== 'PRIMARY' && idx.Key_name !== 'push_subs_endpoint_unique' && !idx.Key_name.startsWith('fk_'))
+                        .map(idx => idx.Key_name);
+
+                    // 2. Drop them
+                    for (const indexName of [...new Set(indexesToDrop)]) {
+                        console.log(`Dropping redundant index: ${indexName}`);
+                        await sequelize.query(`ALTER TABLE PushSubscriptions DROP INDEX \`${indexName}\``).catch(e => console.warn(`Failed to drop ${indexName}: ${e.message}`));
+                    }
+
+                    // 3. Retry sync
+                    console.log('Index cleanup finished. Retrying sync...');
+                    await sequelize.sync({ alter: true });
+                    console.log('Database models synced after cleanup. ✅');
+                } catch (cleanupError) {
+                    console.error('Automatic cleanup failed:', cleanupError.message);
+                    console.warn('Proceeding without sync to allow server startup.');
+                    await sequelize.sync().catch(() => {});
+                }
+            } else {
                 throw error;
             }
         }
