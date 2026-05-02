@@ -729,10 +729,14 @@ async function startServer() {
         } catch (error) {
             console.error('Database Sync Error:', error.message);
             if (error.message.includes('Too many keys')) {
-                console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected on some tables (likely PushSubscriptions).');
-                console.warn('⚠️  Falling back to basic sync to allow server startup. Please clean up duplicate indexes manually!');
+            console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected on some tables (likely PushSubscriptions).');
+            console.warn('⚠️  Proceeding WITHOUT sync to allow server startup. PLEASE RUN THE CLEANUP SCRIPT!');
+            try {
                 await sequelize.sync(); 
-            } else {
+            } catch (fError) {
+                console.error('⚠️  Basic sync also failed, but continuing startup...');
+            }
+        } else {
                 throw error;
             }
         }
