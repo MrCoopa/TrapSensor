@@ -70,8 +70,18 @@ const sendUnifiedNotification = async (user, catchSensor, type, customMessage = 
             if (!messageText) messageText = `Batterie bei Melder "${sensorName}" niedrig. (${voltStr}) (${catchSensor.batteryPercent || 0}%)`;
         } else if (type === 'CONNECTION_LOST') {
             const diffHours = Math.round((Date.now() - new Date(catchSensor.lastSeen).getTime()) / 3600000);
-            notificationTitle = `Warnung - Melder "${sensorName}" seit ${diffHours} Stunden offline.`;
-            if (!messageText) messageText = `Seit ${diffHours} Stunden keine Statusmeldung von Melder "${sensorName}" empfangen.`;
+            
+            let timeStr;
+            if (diffHours >= 24) {
+                const days = Math.floor(diffHours / 24);
+                const remainingHours = diffHours % 24;
+                timeStr = `${days} Tag${days > 1 ? 'e' : ''}${remainingHours > 0 ? ` und ${remainingHours} Std.` : ''}`;
+            } else {
+                timeStr = `${diffHours} Std.`;
+            }
+
+            notificationTitle = `Warnung - Melder "${sensorName}" seit ${timeStr} offline.`;
+            if (!messageText) messageText = `Seit ${timeStr} keine Statusmeldung von Melder "${sensorName}" empfangen.`;
         } else if (type === 'RESYNC_REQUIRED') {
             notificationTitle = `Batteriewechsel? - Melder "${sensorName}"`;
             if (!messageText) messageText = `Melder "${sensorName}" wurde neu gestartet. Bitte Batteriewechsel in der App bestätigen.`;
