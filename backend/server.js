@@ -6,6 +6,8 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const sequelize = require('./src/config/database');
+const crypto = require('crypto');
+
 
 // Import Models
 const CatchSensor = require('./src/models/CatchSensor');
@@ -237,6 +239,7 @@ app.get('/status', (req, res) => {
                         </div>
                     </div>
                     <div class="hidden sm:block pt-3">
+                        <a href="/test-melder" class="bg-blue-100 text-blue-700 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm hover:bg-blue-200 transition-colors mr-2">Simulator</a>
                         <span class="bg-green-100 text-green-700 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest shadow-sm">Server Online</span>
                     </div>
                 </header>
@@ -373,6 +376,246 @@ app.get('/status', (req, res) => {
         </body>
         </html>
     `);
+});
+
+// Software Melder Simulator Page
+app.get('/test-melder', async (req, res) => {
+    const MASTER_SALT = process.env.MASTER_SALT || '';
+    res.send(`
+        <!DOCTYPE html>
+        <html lang="de">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>CatchSensor | Software Melder Simulator</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+            <style>
+                body { font-family: 'Inter', sans-serif; background: #f8fafc; }
+                .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
+                input:focus { border-color: #1b3a2e; ring-color: rgba(27, 58, 46, 0.1); }
+            </style>
+        </head>
+        <body class="p-6 sm:p-12 min-h-screen">
+            <div class="max-w-xl mx-auto space-y-8">
+                <header class="flex items-center space-x-4 mb-12">
+                    <a href="/status" class="w-10 h-10 bg-white shadow-sm border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-[#1b3a2e] transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </a>
+                    <div>
+                        <h1 class="text-3xl font-black text-[#1b3a2e] tracking-tight">Software Melder</h1>
+                        <p class="text-slate-400 font-medium text-xs uppercase tracking-widest">Hardware Simulator v2.0</p>
+                    </div>
+                </header>
+
+                <form id="simulator-form" class="bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100 space-y-6">
+                    <div class="grid grid-cols-1 gap-6">
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">Sensor Kennung (IMEI)</label>
+                            <input type="text" id="imei" required class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 text-slate-900 font-bold focus:bg-white transition-all outline-none" placeholder="z.B. 123456789012345">
+                        </div>
+
+                        <div class="flex bg-slate-50 p-1.5 rounded-2xl">
+                            <button type="button" onclick="setStatus('active')" id="status-active" class="flex-1 py-3 text-[10px] font-black rounded-xl transition-all bg-[#1b3a2e] text-white shadow-md">ACTIVE</button>
+                            <button type="button" onclick="setStatus('triggered')" id="status-triggered" class="flex-1 py-3 text-[10px] font-black rounded-xl transition-all text-slate-400">TRIGGERED</button>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="flex justify-between items-center px-1">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Batterie Spannung</label>
+                                <span id="voltage-label" class="text-xs font-black text-[#1b3a2e]">3850 mV</span>
+                            </div>
+                            <input type="range" id="voltage" min="3300" max="4200" value="3850" class="w-full h-2 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#1b3a2e]" oninput="updateVoltageLabel(this.value)">
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">RSRP (-dBm)</label>
+                                <input type="number" id="rsrp" value="65" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">RSRQ (-dB)</label>
+                                <input type="number" id="rsrq" value="12" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 px-1">SINR (dB)</label>
+                                <input type="number" id="sinr" value="18" class="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm font-bold outline-none">
+                            </div>
+                        </div>
+
+                        <div class="pt-4 flex items-center justify-between bg-slate-50/50 p-6 rounded-[2rem] border border-dashed border-slate-200">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] font-black text-[#1b3a2e] uppercase tracking-widest">Verschlüsselung</span>
+                                <span class="text-[10px] text-slate-400 font-medium">${MASTER_SALT ? 'AES-256-ECB (Master Salt Mode)' : 'Unverschlüsselt'}</span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="encrypted" class="sr-only peer" ${MASTER_SALT ? 'checked' : ''}>
+                                <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1b3a2e]"></div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="submit-btn" class="w-full bg-[#1b3a2e] text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:shadow-2xl hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center space-x-3">
+                        <span>Nachricht Senden</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 14-7-7 14-2-7-7-2Z"/></svg>
+                    </button>
+                </form>
+
+                <div id="response-container" class="hidden animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div class="bg-[#0f172a] rounded-[2rem] p-8 shadow-2xl border border-slate-800 font-mono text-[11px] relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-4">
+                            <span class="text-blue-400 font-bold uppercase tracking-widest">MQTT Publish Result</span>
+                            <span class="text-slate-500" id="response-time">00:00:00</span>
+                        </div>
+                        <div id="response-content" class="space-y-2"></div>
+                        <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl"></div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+                let currentStatus = 'active';
+
+                function setStatus(status) {
+                    currentStatus = status;
+                    const activeBtn = document.getElementById('status-active');
+                    const triggeredBtn = document.getElementById('status-triggered');
+                    
+                    if (status === 'active') {
+                        activeBtn.classList.add('bg-[#1b3a2e]', 'text-white', 'shadow-md');
+                        activeBtn.classList.remove('text-slate-400');
+                        triggeredBtn.classList.remove('bg-[#1b3a2e]', 'text-white', 'shadow-md');
+                        triggeredBtn.classList.add('text-slate-400');
+                    } else {
+                        triggeredBtn.classList.add('bg-[#1b3a2e]', 'text-white', 'shadow-md');
+                        triggeredBtn.classList.remove('text-slate-400');
+                        activeBtn.classList.remove('bg-[#1b3a2e]', 'text-white', 'shadow-md');
+                        activeBtn.classList.add('text-slate-400');
+                    }
+                }
+
+                function updateVoltageLabel(val) {
+                    document.getElementById('voltage-label').innerText = val + ' mV';
+                }
+
+                document.getElementById('simulator-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const btn = document.getElementById('submit-btn');
+                    const originalContent = btn.innerHTML;
+                    btn.innerHTML = '<span>Sende...</span>';
+                    btn.disabled = true;
+
+                    const data = {
+                        imei: document.getElementById('imei').value,
+                        status: currentStatus,
+                        batteryVoltage: document.getElementById('voltage').value,
+                        rsrp: document.getElementById('rsrp').value,
+                        rsrq: document.getElementById('rsrq').value,
+                        sinr: document.getElementById('sinr').value,
+                        encrypted: document.getElementById('encrypted').checked
+                    };
+
+                    try {
+                        const res = await fetch('/api/test-melder/trigger', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                        const result = await res.json();
+                        
+                        const container = document.getElementById('response-container');
+                        const content = document.getElementById('response-content');
+                        container.classList.remove('hidden');
+                        document.getElementById('response-time').innerText = new Date().toLocaleTimeString('de-DE');
+
+                        if (res.ok) {
+                            content.innerHTML = \`
+                                <div class="text-green-400 flex items-center space-x-2">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                                    <span>Success: Message published to MQTT</span>
+                                </div>
+                                <div class="text-slate-400 mt-2">Topic: <span class="text-white">\${result.topic}</span></div>
+                                <div class="text-slate-400">Payload: <span class="text-blue-300 break-all">\${result.payload}</span></div>
+                                <div class="text-slate-400">Counter: <span class="text-orange-400">\${result.fCnt}</span></div>
+                            \`;
+                        } else {
+                            content.innerHTML = \`<div class="text-red-400">Error: \${result.error}</div>\`;
+                        }
+                        
+                        container.scrollIntoView({ behavior: 'smooth' });
+                    } catch (err) {
+                        alert('Fehler: ' + err.message);
+                    } finally {
+                        btn.innerHTML = originalContent;
+                        btn.disabled = false;
+                    }
+                });
+            </script>
+        </body>
+        </html>
+    `);
+});
+
+app.post('/api/test-melder/trigger', async (req, res) => {
+    try {
+        const { imei, status, batteryVoltage, rsrp, rsrq, sinr, encrypted } = req.body;
+        
+        if (!imei) return res.status(400).json({ error: 'IMEI ist erforderlich' });
+
+        const catchSensor = await CatchSensor.findOne({ where: { imei } });
+        let fCnt = 1;
+        if (catchSensor && catchSensor.lastFCnt >= 0) {
+            fCnt = catchSensor.lastFCnt + 1;
+        }
+
+        const MASTER_SALT = process.env.MASTER_SALT || '';
+        const ANONYMIZE = process.env.MQTT_ANONYMIZE_TOPICS === 'true';
+        let topicIdentifier = imei;
+
+        if (ANONYMIZE && MASTER_SALT) {
+            topicIdentifier = crypto.createHash('sha256').update(imei + MASTER_SALT).digest('hex').substring(0, 16).toUpperCase();
+        }
+
+        let payload;
+        if (encrypted) {
+            if (!MASTER_SALT) return res.status(500).json({ error: 'MASTER_SALT nicht konfiguriert' });
+
+            const key = crypto.createHash('sha256').update(imei + MASTER_SALT).digest();
+            
+            const data = Buffer.alloc(16);
+            data.writeUInt8(status === 'active' ? 0x01 : 0x00, 0);
+            data.writeUInt16BE(parseInt(batteryVoltage), 1);
+            data.writeUInt8(Math.abs(parseInt(rsrp)), 3);
+            data.writeUInt32BE(fCnt, 4);
+            data.writeUInt8(Math.abs(parseInt(rsrq)), 8);
+            data.writeInt8(parseInt(sinr), 9);
+            
+            const cipher = crypto.createCipheriv('aes-256-ecb', key, null);
+            cipher.setAutoPadding(false);
+            const encryptedData = Buffer.concat([cipher.update(data), cipher.final()]);
+            payload = encryptedData.toString('hex').toUpperCase();
+        } else {
+            const data = Buffer.alloc(4);
+            data.writeUInt8(status === 'active' ? 0x01 : 0x00, 0);
+            data.writeUInt16BE(parseInt(batteryVoltage), 1);
+            data.writeUInt8(Math.abs(parseInt(rsrp)), 3);
+            payload = data.toString('hex').toUpperCase();
+        }
+
+        const topic = `catches/${topicIdentifier}/data`;
+        req.aedes.publish({
+            topic,
+            payload,
+            qos: 0,
+            retain: false
+        }, (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ message: 'Gesendet', topic, payload, fCnt });
+        });
+    } catch (error) {
+        console.error('Trigger Error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 app.get('/api/status', async (req, res) => {
