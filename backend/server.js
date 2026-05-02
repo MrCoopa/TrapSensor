@@ -722,19 +722,20 @@ async function startServer() {
     }
 
     try {
-        console.log('Database: Syncing models...');
-        await sequelize.sync({ alter: true });
-        console.log('Database models synced.');
-    } catch (error) {
-        console.error('Database Sync Error:', error.message);
-        if (error.message.includes('Too many keys')) {
-            console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected on some tables (likely PushSubscriptions).');
-            console.warn('⚠️  Falling back to basic sync to allow server startup. Please clean up duplicate indexes manually!');
-            await sequelize.sync(); 
-        } else {
-            throw error;
+        try {
+            console.log('Database: Syncing models...');
+            await sequelize.sync({ alter: true });
+            console.log('Database models synced.');
+        } catch (error) {
+            console.error('Database Sync Error:', error.message);
+            if (error.message.includes('Too many keys')) {
+                console.warn('⚠️  CRITICAL DATABASE ERROR: Too many indexes detected on some tables (likely PushSubscriptions).');
+                console.warn('⚠️  Falling back to basic sync to allow server startup. Please clean up duplicate indexes manually!');
+                await sequelize.sync(); 
+            } else {
+                throw error;
+            }
         }
-    }
 
         const PORT = process.env.PORT || 5000;
         server.listen(PORT, '0.0.0.0', () => {
