@@ -692,7 +692,29 @@ io.on('connection', (socket) => {
         console.log(`Socket: User [${socket.userId}] joined room [${roomName}]`);
     }
 
+    // ── Periodic token re-validation ──────────────────────────────────────────
+    // Every 5 minutes, re-verify the JWT. If it has since expired (e.g. the
+    // PWA ran in the background overnight), disconnect the client cleanly so
+    // the app re-routes to the login screen instead of silently showing stale data.
+    const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+    const tokenCheckTimer = setInterval(() => {
+        const token = socket.handshake.auth?.token;
+        if (!token) {
+            socket.emit('auth_expired');
+            socket.disconnect(true);
+            return;
+        }
+        jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret', (err) => {
+            if (err) {
+                console.warn(`Socket: Token expired/invalid for User [${socket.userId}] — disconnecting.`);
+                socket.emit('auth_expired');
+                socket.disconnect(true);
+            }
+        });
+    }, TOKEN_CHECK_INTERVAL);
+
     socket.on('disconnect', (reason) => {
+        clearInterval(tokenCheckTimer);
         console.log(`Socket: Client disconnected (${socket.id}). Reason: ${reason}`);
     });
 });

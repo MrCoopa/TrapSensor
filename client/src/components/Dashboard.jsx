@@ -79,6 +79,29 @@ const Dashboard = ({ onLogout }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
+        // ── JWT Expiry Auto-Logout ────────────────────────────────────────────────
+        // Decode the token client-side to find its expiry, then schedule a logout.
+        let tokenExpiryTimer = null;
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (payload.exp) {
+                const msUntilExpiry = payload.exp * 1000 - Date.now();
+                if (msUntilExpiry <= 0) {
+                    // Token already expired
+                    console.warn('Dashboard: JWT already expired — logging out.');
+                    onLogout();
+                    return;
+                }
+                console.log(`Dashboard: JWT expires in ${Math.round(msUntilExpiry / 60000)} min.`);
+                tokenExpiryTimer = setTimeout(() => {
+                    console.warn('Dashboard: JWT expired — auto-logging out.');
+                    onLogout();
+                }, msUntilExpiry);
+            }
+        } catch (e) {
+            console.error('Dashboard: Could not decode JWT for expiry check.', e);
+        }
+
         // Socket.io should also use API_BASE for native path
         const socket = io(API_BASE, {
             auth: {
@@ -105,6 +128,17 @@ const Dashboard = ({ onLogout }) => {
         socket.on('connect_error', (err) => {
             console.error('Socket Authentication Error:', err.message);
             setConnectionStatus('disconnected');
+            // If it's an auth error (e.g. token expired and rejected by server), force logout
+            if (err.message === 'Authentication error') {
+                console.warn('Dashboard: Socket auth rejected — logging out.');
+                onLogout();
+            }
+        });
+
+        // Server signals that the session is no longer valid
+        socket.on('auth_expired', () => {
+            console.warn('Dashboard: auth_expired event received — logging out.');
+            onLogout();
         });
 
         socket.on('catchSensorUpdate', (updatedCatch) => {
@@ -165,10 +199,12 @@ const Dashboard = ({ onLogout }) => {
 
         return () => {
             console.log('Dashboard: Cleaning up socket & listeners');
+            if (tokenExpiryTimer) clearTimeout(tokenExpiryTimer);
             socket.off('connect');
             socket.off('disconnect');
             socket.off('reconnecting');
             socket.off('connect_error');
+            socket.off('auth_expired');
             socket.off('catchSensorUpdate');
             socket.off('catchSensorDelete');
             socket.disconnect();
@@ -241,7 +277,25 @@ const Dashboard = ({ onLogout }) => {
                 </div>
             </header>
 
-            <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-6 mb-24">
+            {/* ── Offline Banner ─────────────────────────────────────────────────── */}
+            {connectionStatus === 'disconnected' && (
+                <div className="sticky top-0 z-20 bg-red-600 text-white text-center py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 shadow-md">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+                    </svg>
+                    <span>Verbindung unterbrochen – Änderungen werden nicht gespeichert</span>
+                </div>
+            )}
+            {connectionStatus === 'connecting' && (
+                <div className="sticky top-0 z-20 bg-amber-500 text-white text-center py-2 px-4 text-xs font-bold flex items-center justify-center gap-2">
+                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                    </svg>
+                    <span>Verbinde mit Server...</span>
+                </div>
+            )}
+
+            <main className={`flex-1 max-w-2xl w-full mx-auto px-4 py-6 mb-24 transition-opacity duration-300 ${connectionStatus === 'disconnected' ? 'pointer-events-none opacity-60' : ''}`}>
                 {catches.length === 0 ? (
                     <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200 shadow-sm">
                         <p className="text-gray-500 font-medium">Noch keine Melder. Klicken Sie auf "+ Neu".</p>
