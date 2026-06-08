@@ -7,6 +7,23 @@ const generateToken = (id) => {
     });
 };
 
+/**
+ * Refresh Token
+ * Called by the client shortly before the current token expires.
+ * Requires a valid (not yet expired) token via the protect middleware.
+ * Returns a fresh 30-day token so the user stays logged in indefinitely.
+ */
+const refreshToken = async (req, res) => {
+    try {
+        const newToken = generateToken(req.user.id);
+        console.log(`Auth: 🔄 Token refreshed for user ${req.user.id}`);
+        res.json({ token: newToken });
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        res.status(500).json({ message: 'Server error during token refresh' });
+    }
+};
+
 const registerUser = async (req, res) => {
     const { email, name, password } = req.body;
 
@@ -147,6 +164,7 @@ module.exports = {
     getMe,
     changePassword,
     updateProfile,
+    refreshToken,
 };
 
 

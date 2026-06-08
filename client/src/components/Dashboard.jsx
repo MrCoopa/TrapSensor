@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import CatchCard from './CatchCard';
 import AddCatchModal from './AddCatchModal';
@@ -16,6 +16,9 @@ const Dashboard = ({ onLogout }) => {
     const [selectedCatch, setSelectedCatch] = useState(null);
     const [revierweltEnabled, setRevierweltEnabled] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connected', 'disconnected', 'connecting'
+
+    // Ref to hold the socket instance so timers can access the latest socket
+    const socketRef = useRef(null);
 
     const baseUrl = ''; // kept for socket.io if needed, or remove if socket io also proxies
 
@@ -72,6 +75,72 @@ const Dashboard = ({ onLogout }) => {
 
     const currentUserId = getCurrentUserId();
 
+    /**
+     * Silently fetches a new JWT from the backend using the current (still valid) token.
+     * On success: stores the new token, reconnects the socket with the fresh auth.
+     * On failure: logs the user out (token truly expired or revoked).
+     */
+    const silentRefresh = useCallback(async () => {
+        console.log('Dashboard: 🔄 Attempting silent token refresh...');
+        const currentToken = localStorage.getItem('token');
+        if (!currentToken) { onLogout(); return; }
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            });
+            if (!res.ok) {
+                console.warn('Dashboard: Silent refresh failed — logging out.');
+                onLogout();
+                return;
+            }
+            const { token: newToken } = await res.json();
+            localStorage.setItem('token', newToken);
+            console.log('Dashboard: ✅ Token refreshed successfully. Reconnecting socket...');
+
+            // Reconnect socket with new token
+            if (socketRef.current) {
+                socketRef.current.auth = { token: newToken };
+                socketRef.current.disconnect();
+                socketRef.current.connect();
+            }
+
+            // Schedule the next refresh
+            scheduleTokenRefresh(newToken);
+        } catch (err) {
+            console.error('Dashboard: Silent refresh error:', err);
+            // Network offline — don't logout, just retry when socket reconnects
+        }
+    }, [onLogout]);
+
+    /**
+     * Decodes a JWT and schedules a silent refresh 24 hours before it expires.
+     * If less than 24h remain, refresh immediately.
+     */
+    const scheduleTokenRefresh = useCallback((token) => {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            if (!payload.exp) return;
+
+            const msUntilExpiry = payload.exp * 1000 - Date.now();
+
+            if (msUntilExpiry <= 0) {
+                // Token already expired — can't refresh, must logout
+                console.warn('Dashboard: JWT already expired — logging out.');
+                onLogout();
+                return;
+            }
+
+            // Refresh 24h before expiry (or immediately if < 24h left)
+            const REFRESH_BEFORE_MS = 24 * 60 * 60 * 1000; // 24 hours
+            const refreshIn = Math.max(0, msUntilExpiry - REFRESH_BEFORE_MS);
+            console.log(`Dashboard: 🕐 Token refresh scheduled in ${Math.round(refreshIn / 60000)} min.`);
+            return setTimeout(() => silentRefresh(), refreshIn);
+        } catch (e) {
+            console.error('Dashboard: Could not decode JWT for refresh scheduling.', e);
+        }
+    }, [onLogout, silentRefresh]);
+
     useEffect(() => {
         fetchCatches();
         fetchUserProfile();
@@ -79,37 +148,19 @@ const Dashboard = ({ onLogout }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        // ── JWT Expiry Auto-Logout ────────────────────────────────────────────────
-        // Decode the token client-side to find its expiry, then schedule a logout.
-        let tokenExpiryTimer = null;
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            if (payload.exp) {
-                const msUntilExpiry = payload.exp * 1000 - Date.now();
-                if (msUntilExpiry <= 0) {
-                    // Token already expired
-                    console.warn('Dashboard: JWT already expired — logging out.');
-                    onLogout();
-                    return;
-                }
-                console.log(`Dashboard: JWT expires in ${Math.round(msUntilExpiry / 60000)} min.`);
-                tokenExpiryTimer = setTimeout(() => {
-                    console.warn('Dashboard: JWT expired — auto-logging out.');
-                    onLogout();
-                }, msUntilExpiry);
-            }
-        } catch (e) {
-            console.error('Dashboard: Could not decode JWT for expiry check.', e);
-        }
+        // Schedule silent token refresh (keeps the user permanently logged in)
+        const refreshTimer = scheduleTokenRefresh(token);
 
         // Socket.io should also use API_BASE for native path
         const socket = io(API_BASE, {
             auth: {
                 token: token
             },
-            reconnectionAttempts: 5,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 2000,
             timeout: 10000
         });
+        socketRef.current = socket;
 
         socket.on('connect', () => {
             console.log('Socket: Connected to backend');
@@ -128,14 +179,11 @@ const Dashboard = ({ onLogout }) => {
         socket.on('connect_error', (err) => {
             console.error('Socket Authentication Error:', err.message);
             setConnectionStatus('disconnected');
-            // If it's an auth error (e.g. token expired and rejected by server), force logout
-            if (err.message === 'Authentication error') {
-                console.warn('Dashboard: Socket auth rejected — logging out.');
-                onLogout();
-            }
+            // Only force logout for auth errors when we know the token is expired
+            // (silentRefresh handles this case via the scheduler above)
         });
 
-        // Server signals that the session is no longer valid
+        // Server signals that the session is no longer valid and refresh also failed
         socket.on('auth_expired', () => {
             console.warn('Dashboard: auth_expired event received — logging out.');
             onLogout();
@@ -199,7 +247,8 @@ const Dashboard = ({ onLogout }) => {
 
         return () => {
             console.log('Dashboard: Cleaning up socket & listeners');
-            if (tokenExpiryTimer) clearTimeout(tokenExpiryTimer);
+            if (refreshTimer) clearTimeout(refreshTimer);
+            socketRef.current = null;
             socket.off('connect');
             socket.off('disconnect');
             socket.off('reconnecting');
