@@ -212,6 +212,10 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 }
             } else if (payload.length === 8) {
                 // Handle unencrypted 8-char hex string (4 bytes)
+                if (keyBuffer) {
+                    console.error(`MQTT: ❌ Security violation: Received unencrypted payload for encrypted device ${realImei}`);
+                    return; // Reject unencrypted payload for encrypted device
+                }
                 dataBuffer = Buffer.from(payload.toString(), 'hex');
             }
 
@@ -490,8 +494,17 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
         });
 
         // 4. Send Notifications (Wait for these to update timestamps if needed)
-        if (catchSensor.userId) {
-            const user = await User.findByPk(catchSensor.userId);
+        // Find owner and all users with whom the sensor is shared
+        const userIds = [catchSensor.userId].filter(Boolean);
+        const shares = await CatchShare.findAll({ where: { catchSensorId: catchSensor.id } });
+        shares.forEach(share => {
+            if (!userIds.includes(share.userId)) {
+                userIds.push(share.userId);
+            }
+        });
+
+        for (const uId of userIds) {
+            const user = await User.findByPk(uId);
             if (user) {
                 const threshold = user.batteryThreshold || 20;
 
@@ -504,9 +517,11 @@ const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
         }
 
         // 5. Emit Update to Clients (Now contains the new alert timestamps)
-        const roomName = `user_${catchSensor.userId}`;
-        io.to(roomName).emit('catchSensorUpdate', catchSensor);
-        console.log(`MQTT: 📢 Emitted update for ${catchSensor.name} (${deviceId}). Status: ${catchSensor.status}, Batt: ${catchSensor.batteryPercent}%`);
+        userIds.forEach(uId => {
+            const roomName = `user_${uId}`;
+            io.to(roomName).emit('catchSensorUpdate', catchSensor);
+        });
+        console.log(`MQTT: 📢 Emitted update for ${catchSensor.name} (${deviceId}). Status: ${catchSensor.status}, Batt: ${catchSensor.batteryPercent}% to user rooms: ${userIds.join(', ')}`);
 
     } catch (err) {
         console.error('updateCatchSensorData Error:', err);

@@ -29,15 +29,35 @@ const setupWatchdog = (io) => {
 
             if (sensors.length === 0) return;
 
-            // Batch-load all relevant users to avoid N+1 queries
-            const userIds = [...new Set(sensors.map(s => s.userId))];
-            const users = await User.findAll({ where: { id: { [Op.in]: userIds } } });
+            // Batch-load all relevant users (owners and shared users) to avoid N+1 queries
+            const ownerIds = [...new Set(sensors.map(s => s.userId))];
+            const CatchShare = require('../models/CatchShare');
+            const shares = await CatchShare.findAll({
+                where: { catchSensorId: { [Op.in]: sensors.map(s => s.id) } }
+            });
+            const sharedUserIds = shares.map(share => share.userId);
+            const allUserIds = [...new Set([...ownerIds, ...sharedUserIds])];
+            
+            const users = await User.findAll({ where: { id: { [Op.in]: allUserIds } } });
             const userMap = {};
             for (const u of users) userMap[u.id] = u;
 
+            // Map sensorId to list of authorized user IDs
+            const sensorUsersMap = {};
             for (const sensor of sensors) {
-                const user = userMap[sensor.userId];
-                if (!user) continue;
+                sensorUsersMap[sensor.id] = [sensor.userId].filter(Boolean);
+            }
+            for (const share of shares) {
+                if (sensorUsersMap[share.catchSensorId]) {
+                    if (!sensorUsersMap[share.catchSensorId].includes(share.userId)) {
+                        sensorUsersMap[share.catchSensorId].push(share.userId);
+                    }
+                }
+            }
+
+            for (const sensor of sensors) {
+                const authorizedUserIds = sensorUsersMap[sensor.id] || [];
+                if (authorizedUserIds.length === 0) continue;
 
                 const catchInterval = 3;   // hours between triggered repeat alerts
                 const batteryInterval = 8;   // hours between battery alerts
@@ -60,7 +80,12 @@ const setupWatchdog = (io) => {
                         const sinceAlert = lastAlert ? (Date.now() - new Date(lastAlert).getTime()) / 3600000 : Infinity;
                         if (sinceAlert >= catchInterval) {
                             console.log(`Watchdog: 🚨 Re-alerting TRIGGERED sensor "${sensorLabel}" (${sinceAlert.toFixed(1)}h since last alert)`);
-                            await sendUnifiedNotification(user, sensor, 'ALARM');
+                            for (const uId of authorizedUserIds) {
+                                const user = userMap[uId];
+                                if (user) {
+                                    await sendUnifiedNotification(user, sensor, 'ALARM');
+                                }
+                            }
                         }
                     }
                 }
@@ -74,23 +99,35 @@ const setupWatchdog = (io) => {
                         // Update status to inactive if not already
                         if (sensor.status !== 'inactive') {
                             await sensor.update({ status: 'inactive' });
-                            io.emit('catchSensorUpdate', sensor);
+                            authorizedUserIds.forEach(uId => {
+                                io.to(`user_${uId}`).emit('catchSensorUpdate', sensor);
+                            });
                         }
 
                         // sendUnifiedNotification handles its own throttle via lastOfflineAlert
-                        await sendUnifiedNotification(user, sensor, 'CONNECTION_LOST');
+                        for (const uId of authorizedUserIds) {
+                            const user = userMap[uId];
+                            if (user) {
+                                await sendUnifiedNotification(user, sensor, 'CONNECTION_LOST');
+                            }
+                        }
                     }
                 }
 
                 // ── 3. LOW_BATTERY: repeat alert while battery stays below threshold ──
                 if (sensor.batteryPercent !== null) {
-                    const threshold = user.batteryThreshold || 20;
-                    if (sensor.batteryPercent < threshold) {
-                        const lastAlert = sensor.lastBatteryAlert;
-                        const sinceAlert = lastAlert ? (Date.now() - new Date(lastAlert).getTime()) / 3600000 : Infinity;
-                        if (sinceAlert >= batteryInterval) {
-                            console.log(`Watchdog: 🪫 Re-alerting LOW BATTERY sensor "${sensorLabel}" (${sensor.batteryPercent}% < ${threshold}%)`);
-                            await sendUnifiedNotification(user, sensor, 'LOW_BATTERY');
+                    const lastAlert = sensor.lastBatteryAlert;
+                    const sinceAlert = lastAlert ? (Date.now() - new Date(lastAlert).getTime()) / 3600000 : Infinity;
+                    if (sinceAlert >= batteryInterval) {
+                        for (const uId of authorizedUserIds) {
+                            const user = userMap[uId];
+                            if (user) {
+                                const threshold = user.batteryThreshold || 20;
+                                if (sensor.batteryPercent < threshold) {
+                                    console.log(`Watchdog: 🪫 Re-alerting LOW BATTERY sensor "${sensorLabel}" for User ${user.email} (${sensor.batteryPercent}% < ${threshold}%)`);
+                                    await sendUnifiedNotification(user, sensor, 'LOW_BATTERY');
+                                }
+                            }
                         }
                     }
                 }

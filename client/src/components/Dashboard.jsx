@@ -114,6 +114,11 @@ const Dashboard = ({ onLogout }) => {
             );
         });
 
+        socket.on('catchSensorDelete', ({ id }) => {
+            console.log('Socket: Received delete for detector:', id);
+            setCatches(prevCatches => prevCatches.filter(c => c.id !== id));
+        });
+
         const handleOpenModal = () => setIsAddModalOpen(true);
         window.addEventListener('open-add-catch-sensor', handleOpenModal);
 
@@ -165,6 +170,7 @@ const Dashboard = ({ onLogout }) => {
             socket.off('reconnecting');
             socket.off('connect_error');
             socket.off('catchSensorUpdate');
+            socket.off('catchSensorDelete');
             socket.disconnect();
             window.removeEventListener('open-add-catch-sensor', handleOpenModal);
             window.removeEventListener('backbutton', handleBackEvent);
