@@ -27,45 +27,6 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
         }
     }, [isOpen, catchSensor]);
 
-    const exportToCSV = () => {
-        if (readings.length === 0) return;
-        
-        // CSV Headers (German naming matches application defaults)
-        const headers = ['Zeitstempel', 'Status', 'Spannung (V)', 'Ladung (%)', 'Signal (dBm)', 'SNR (dB)', 'SF', 'Gateway-ID', 'F-CNT'];
-        
-        // Format rows
-        const rows = readings.map(r => [
-            new Date(r.timestamp).toLocaleString('de-DE'),
-            r.status === 'triggered' ? 'CLOSED/FANG' : 'ACTIVE',
-            ((r.value || 0) / 1000).toFixed(2).replace('.', ','),
-            r.batteryPercent || 0,
-            r.rsrp || 0,
-            r.snr != null ? r.snr : (r.sinr != null ? r.sinr : ''),
-            r.spreadingFactor || '',
-            r.gatewayId || '',
-            r.fCnt || 0
-        ]);
-        
-        // Combine into CSV string (using semicolon for German Excel compatibility)
-        const csvContent = [
-            headers.join(';'),
-            ...rows.map(row => row.map(val => `"${val}"`).join(';'))
-        ].join('\n');
-        
-        // Create download link with UTF-8 BOM
-        const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        const filename = `Report_${catchSensor.alias || catchSensor.name}_${new Date().toISOString().slice(0, 10)}.csv`;
-        
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
-
     if (!isOpen || !catchSensor) return null;
 
     return (
@@ -148,17 +109,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
 
 
                 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                    <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Verlauf</h4>
-                        {readings.length > 0 && (
-                            <button 
-                                onClick={exportToCSV}
-                                className="text-[10px] font-black text-green-700 hover:text-green-800 uppercase tracking-widest border border-green-700/20 px-3 py-1 rounded-lg bg-green-50/50 transition-all active:scale-95"
-                            >
-                                CSV Exportieren
-                            </button>
-                        )}
-                    </div>
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Verlauf</h4>
                     <div className="space-y-4">
                         {readings.map((reading) => (
                             <div key={reading.id} className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100/50">
