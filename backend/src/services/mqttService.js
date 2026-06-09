@@ -72,37 +72,101 @@ const setupMQTT = (io, aedes) => {
     }
 };
 
+const CIRCUIT_BREAKER_THRESHOLD = 10;   // open circuit after this many consecutive failures
+const CIRCUIT_BREAKER_RESET_MS   = 10 * 60 * 1000; // retry after 10 minutes
+const BACKOFF_BASE_MS             = 1_000;           // initial retry delay: 1 second
+const BACKOFF_MAX_MS              = 5 * 60 * 1000;  // maximum retry delay: 5 minutes
+
 const connectToBroker = (config, onMessage) => {
-    console.log(`MQTT: Connecting to ${config.name} Broker: ${config.url}`);
-    const client = mqtt.connect(config.url, {
-        username: config.username,
-        password: config.password,
-    });
+    let consecutiveFailures = 0;
+    let circuitOpenedAt     = null;
+    let backoffMs           = BACKOFF_BASE_MS;
+    let reconnectTimer      = null;
 
-    client.on('connect', () => {
-        console.log(`MQTT: ✅ Connected to ${config.name} Broker`);
-        client.subscribe(config.topic, (err) => {
-            if (err) console.error(`MQTT: Failed to subscribe to ${config.topic}`, err);
-            else console.log(`MQTT: Subscribed to ${config.topic}`);
-        });
-    });
-
-    client.on('packetreceive', (packet) => {
-        if (packet.cmd === 'publish') {
-            // Keep minimal for production
+    const attempt = () => {
+        // Circuit breaker: if open, wait until reset period has elapsed
+        if (circuitOpenedAt !== null) {
+            const elapsed = Date.now() - circuitOpenedAt;
+            if (elapsed < CIRCUIT_BREAKER_RESET_MS) {
+                const remaining = Math.round((CIRCUIT_BREAKER_RESET_MS - elapsed) / 1000);
+                console.warn(`MQTT: ⚡ ${config.name} circuit OPEN — skipping reconnect. Retrying in ${remaining}s.`);
+                reconnectTimer = setTimeout(attempt, CIRCUIT_BREAKER_RESET_MS - elapsed);
+                return;
+            }
+            // Reset circuit after the cooling-off period
+            console.log(`MQTT: 🔄 ${config.name} circuit reset — attempting reconnect.`);
+            circuitOpenedAt     = null;
+            consecutiveFailures = 0;
+            backoffMs           = BACKOFF_BASE_MS;
         }
-    });
 
-    client.on('message', (topic, payload) => {
-        console.log(`MQTT: Received message on ${config.name} topic: ${topic}`);
-        onMessage(topic, payload);
-    });
+        console.log(`MQTT: Connecting to ${config.name} Broker: ${config.url}`);
 
-    client.on('error', (err) => {
-        console.error(`MQTT ${config.name} Error:`, err);
-    });
+        // Disable the mqtt library's built-in auto-reconnect so we control the timing.
+        const client = mqtt.connect(config.url, {
+            username:        config.username,
+            password:        config.password,
+            reconnectPeriod: 0,       // disables automatic reconnect
+            connectTimeout:  15_000,  // 15s connect timeout
+        });
 
-    return client;
+        client.on('connect', () => {
+            console.log(`MQTT: ✅ Connected to ${config.name} Broker`);
+            consecutiveFailures = 0;
+            backoffMs           = BACKOFF_BASE_MS;
+            circuitOpenedAt     = null;
+
+            client.subscribe(config.topic, (err) => {
+                if (err) console.error(`MQTT: Failed to subscribe to ${config.topic}`, err);
+                else console.log(`MQTT: Subscribed to ${config.topic}`);
+            });
+        });
+
+        client.on('packetreceive', (packet) => {
+            if (packet.cmd === 'publish') {
+                // Keep minimal for production
+            }
+        });
+
+        client.on('message', (topic, payload) => {
+            console.log(`MQTT: Received message on ${config.name} topic: ${topic}`);
+            onMessage(topic, payload);
+        });
+
+        const scheduleReconnect = (reason) => {
+            client.end(true); // force-close without waiting
+
+            consecutiveFailures++;
+            console.error(`MQTT ${config.name} ${reason} (failure #${consecutiveFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`);
+
+            if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+                circuitOpenedAt = Date.now();
+                console.error(`MQTT: 🚨 ${config.name} circuit OPENED after ${consecutiveFailures} failures. Pausing for ${CIRCUIT_BREAKER_RESET_MS / 60000} minutes.`);
+                reconnectTimer = setTimeout(attempt, CIRCUIT_BREAKER_RESET_MS);
+                return;
+            }
+
+            reconnectTimer = setTimeout(() => {
+                backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+                attempt();
+            }, backoffMs);
+        };
+
+        client.on('error', (err) => {
+            // Only log the message, not the full stack, to keep logs clean on DNS errors
+            scheduleReconnect(`Error: ${err.message}`);
+        });
+
+        client.on('close', () => {
+            // 'close' fires after a clean disconnect or after 'error'. Only act if not already
+            // scheduled for reconnect (i.e. the close wasn't caused by our own client.end()).
+            if (!reconnectTimer && consecutiveFailures > 0) {
+                scheduleReconnect('Connection closed');
+            }
+        });
+    };
+
+    attempt();
 };
 
 const MASTER_SALT = process.env.MASTER_SALT || '';
