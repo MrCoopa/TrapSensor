@@ -135,7 +135,10 @@ router.patch('/:id', async (req, res) => {
         await catchSensor.save();
 
         if (req.io) {
-            req.io.emit('catchSensorUpdate', catchSensor);
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
+            req.io.emit('catchSensorUpdate', updatedSensor);
         }
 
         res.json(catchSensor);
@@ -215,7 +218,9 @@ router.post('/:id/acknowledge', async (req, res) => {
         // Push the updated sensor state to the client immediately via Socket.IO,
         // so the UI shows 'Quittiert' even if the simulator keeps sending trigger packets.
         if (catchSensor.userId) {
-            const updatedSensor = await catchSensor.reload();
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
             req.io.to(`user_${catchSensor.userId}`).emit('catchSensorUpdate', updatedSensor);
         }
 
@@ -246,7 +251,9 @@ router.post('/:id/resync', async (req, res) => {
         });
 
         if (catchSensor.userId) {
-            const updatedSensor = await catchSensor.reload();
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
             req.io.to(`user_${catchSensor.userId}`).emit('catchSensorUpdate', updatedSensor);
         }
 

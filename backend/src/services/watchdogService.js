@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const CatchSensor = require('../models/CatchSensor');
 const User = require('../models/User');
+const LoraMetadata = require('../models/LoraMetadata');
 const { Op } = require('sequelize');
 const { sendUnifiedNotification } = require('./notificationService');
 
@@ -99,8 +100,11 @@ const setupWatchdog = (io) => {
                         // Update status to inactive if not already
                         if (sensor.status !== 'inactive') {
                             await sensor.update({ status: 'inactive' });
+                            const updatedSensor = await CatchSensor.findByPk(sensor.id, {
+                                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+                            });
                             authorizedUserIds.forEach(uId => {
-                                io.to(`user_${uId}`).emit('catchSensorUpdate', sensor);
+                                io.to(`user_${uId}`).emit('catchSensorUpdate', updatedSensor);
                             });
                         }
 

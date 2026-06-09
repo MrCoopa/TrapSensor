@@ -202,7 +202,10 @@ const Dashboard = ({ onLogout }) => {
         socket.on('catchSensorUpdate', (updatedCatch) => {
             console.log('Socket: Received update for detector:', updatedCatch.id);
             setCatches(prevCatches =>
-                prevCatches.map(c => c.id === updatedCatch.id ? updatedCatch : c)
+                prevCatches.map(c => c.id === updatedCatch.id ? {
+                    ...updatedCatch,
+                    lorawanCatchSensor: updatedCatch.lorawanCatchSensor || c.lorawanCatchSensor
+                } : c)
             );
         });
 
