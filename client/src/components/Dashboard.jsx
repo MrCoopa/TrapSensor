@@ -104,9 +104,6 @@ const Dashboard = ({ onLogout }) => {
                 socketRef.current.disconnect();
                 socketRef.current.connect();
             }
-
-            // Schedule the next refresh
-            scheduleTokenRefresh(newToken);
         } catch (err) {
             console.error('Dashboard: Silent refresh error:', err);
             // Network offline — don't logout, just retry when socket reconnects
@@ -114,13 +111,14 @@ const Dashboard = ({ onLogout }) => {
     }, [onLogout]);
 
     /**
-     * Decodes a JWT and schedules a silent refresh 24 hours before it expires.
-     * If less than 24h remain, refresh immediately.
+     * Decodes the current JWT and checks if it needs to be refreshed.
+     * Since the token is valid for 30 days, we refresh it if it expires in less than 7 days.
+     * Returns true if refresh was triggered.
      */
-    const scheduleTokenRefresh = useCallback((token) => {
+    const checkAndRefreshToken = useCallback((token) => {
         try {
             const payload = JSON.parse(atob(token.split('.')[1]));
-            if (!payload.exp) return;
+            if (!payload.exp) return false;
 
             const msUntilExpiry = payload.exp * 1000 - Date.now();
 
@@ -128,17 +126,20 @@ const Dashboard = ({ onLogout }) => {
                 // Token already expired — can't refresh, must logout
                 console.warn('Dashboard: JWT already expired — logging out.');
                 onLogout();
-                return;
+                return true;
             }
 
-            // Refresh 24h before expiry (or immediately if < 24h left)
-            const REFRESH_BEFORE_MS = 24 * 60 * 60 * 1000; // 24 hours
-            const refreshIn = Math.max(0, msUntilExpiry - REFRESH_BEFORE_MS);
-            console.log(`Dashboard: 🕐 Token refresh scheduled in ${Math.round(refreshIn / 60000)} min.`);
-            return setTimeout(() => silentRefresh(), refreshIn);
+            // If token expires in less than 7 days, refresh it.
+            // 7 days = 7 * 24 * 60 * 60 * 1000 = 604,800,000 ms
+            const REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+            if (msUntilExpiry < REFRESH_THRESHOLD_MS) {
+                silentRefresh();
+                return true;
+            }
         } catch (e) {
-            console.error('Dashboard: Could not decode JWT for refresh scheduling.', e);
+            console.error('Dashboard: Could not decode JWT for refresh check.', e);
         }
+        return false;
     }, [onLogout, silentRefresh]);
 
     useEffect(() => {
@@ -148,8 +149,17 @@ const Dashboard = ({ onLogout }) => {
         const token = localStorage.getItem('token');
         if (!token) return;
 
-        // Schedule silent token refresh (keeps the user permanently logged in)
-        const refreshTimer = scheduleTokenRefresh(token);
+        // Check immediately on mount
+        checkAndRefreshToken(token);
+
+        // Periodically check every 6 hours (safe, well within 24.8 days limit)
+        // 6 hours = 6 * 60 * 60 * 1000 = 21,600,000 ms
+        const refreshTimer = setInterval(() => {
+            const currentToken = localStorage.getItem('token');
+            if (currentToken) {
+                checkAndRefreshToken(currentToken);
+            }
+        }, 6 * 60 * 60 * 1000);
 
         // Socket.io should also use API_BASE for native path
         const socket = io(API_BASE, {
@@ -247,7 +257,7 @@ const Dashboard = ({ onLogout }) => {
 
         return () => {
             console.log('Dashboard: Cleaning up socket & listeners');
-            if (refreshTimer) clearTimeout(refreshTimer);
+            if (refreshTimer) clearInterval(refreshTimer);
             socketRef.current = null;
             socket.off('connect');
             socket.off('disconnect');
