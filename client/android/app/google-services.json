@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "657656266093",
+    "project_id": "catchsensor-1181b",
+    "storage_bucket": "catchsensor-1181b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:657656266093:android:daf4ee3e618b584fd1ee64",
+        "android_client_info": {
+          "package_name": "com.catchsensor.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAoYtUmG-qGMBlvREAsVrRct-AOtxN3zzk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

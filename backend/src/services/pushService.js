@@ -1,52 +1,89 @@
-const webpush = require('web-push');
-const CatchSensor = require('../models/CatchSensor');
+const admin = require('firebase-admin');
+const path = require('path');
+const fs = require('fs');
+const PushSubscription = require('../models/PushSubscription');
 
-// Normally generated and stored in .env
-// const vapidKeys = webpush.generateVAPIDKeys(); 
-const PUBLIC_VAPID_KEY = process.env.VAPID_PUBLIC_KEY;
-const PRIVATE_VAPID_KEY = process.env.VAPID_PRIVATE_KEY;
+// Initialize Firebase Admin SDK
+// Priority: 1. FIREBASE_SERVICE_ACCOUNT_B64 env var, 2. serviceAccountKey.json file
+const serviceAccountPath = path.join(__dirname, '../../serviceAccountKey.json');
+let firebaseInitialized = false;
 
-if (PUBLIC_VAPID_KEY && PRIVATE_VAPID_KEY) {
-    webpush.setVapidDetails(
-        'mailto:admin@CatchSensor.de',
-        PUBLIC_VAPID_KEY,
-        PRIVATE_VAPID_KEY
-    );
+try {
+    let serviceAccount = null;
+
+    // 1. Try env var first (preferred for Docker/Portainer)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+        const decoded = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+        serviceAccount = JSON.parse(decoded);
+        console.log('Push Service: Firebase credentials loaded from env var. ✅');
+    }
+    // 2. Fallback to file (local dev)
+    else if (fs.existsSync(serviceAccountPath) && fs.lstatSync(serviceAccountPath).isFile()) {
+        serviceAccount = require(serviceAccountPath);
+        console.log('Push Service: Firebase credentials loaded from file. ✅');
+    }
+
+    if (serviceAccount) {
+        admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+        console.log('Push Service: Firebase Admin SDK initialized successfully. ✅');
+        firebaseInitialized = true;
+    } else {
+        console.warn('Push Service: ⚠️ No Firebase credentials found (env var or file). Native Push (FCM) will not work.');
+    }
+} catch (error) {
+    console.error('Push Service: ❌ Error initializing Firebase Admin SDK:', error.message);
 }
 
-const sendPushNotification = async (catchSensor, subscription, title, body) => {
-    // Throttling and message generation is now handled centrally 
-    // in notificationService.js to ensure consistency across all channels.
+const sendNativeNotification = async (token, title, body, data = {}) => {
+    if (!firebaseInitialized) {
+        console.warn('Push Service: Skipping Native Push - Firebase not initialized.');
+        return;
+    }
 
-    const payload = JSON.stringify({
-        title,
-        body,
+    const message = {
+        token: token,
+        notification: {
+            title: title,
+            body: body
+        },
         data: {
-            url: `/catch/${catchSensor.id}`,
-            t: Date.now()
+            // Capacitor Push plugin puts data in 'data' field
+            ...data,
+            landing_page: data.url || '/', // Custom data
+            click_action: 'FCM_PLUGIN_ACTIVITY' // Required for some plugins
+        },
+        android: {
+            priority: 'high',
+            notification: {
+                sound: 'default',
+                channelId: 'catch-channel', // Must match channel created in App
+                icon: 'ic_stat_notification',
+                color: '#1b3a2e',
+                priority: 'max',
+                defaultSound: true
+            }
         }
-    });
+    };
 
     try {
-        console.log(`Push Service: Sending to endpoint: ${subscription.endpoint.substring(0, 40)}...`);
-        console.log(`Push Service: Payload: ${payload}`);
-
-        const result = await webpush.sendNotification(subscription, payload, {
-            TTL: 60 * 60 * 24, // 24 hours
-            urgency: 'high'    // Critical for Android to wake up from Doze mode
-        });
-        console.log(`Push Service: Success! Status Code: ${result.statusCode}`);
-
-    } catch (err) {
-        console.error('Push Service: ❌ Error during webpush.sendNotification:', err);
-        if (err.statusCode === 410 || err.statusCode === 404) {
-            console.warn('Push Service: ⚠️ Subscription expired or no longer valid. Cleaning up...');
-            const PushSubscription = require('../models/PushSubscription');
-            await PushSubscription.destroy({ where: { endpoint: subscription.endpoint } });
-            console.log(`Push Service: ✅ Subscription deleted for endpoint: ${subscription.endpoint.substring(0, 30)}...`);
+        console.log(`Push Service: Sending Native FCM to token: ${token.substring(0, 20)}...`);
+        const response = await admin.messaging().send(message);
+        console.log('Push Service: Native FCM sent successfully:', response);
+        return response;
+    } catch (error) {
+        console.error('Push Service: Error sending Native FCM:', error.message);
+        if (error.code === 'messaging/registration-token-not-registered') {
+            console.warn(`Push Service: Token expired/invalid — auto-deleting from DB: ${token.substring(0, 20)}...`);
+            try {
+                await PushSubscription.destroy({ where: { endpoint: token } });
+                console.log('Push Service: Stale token removed from DB.');
+            } catch (dbErr) {
+                console.error('Push Service: Failed to remove stale token from DB:', dbErr.message);
+            }
         }
+        throw error;
     }
 };
 
-module.exports = { sendPushNotification };
+module.exports = { sendNativeNotification };
 

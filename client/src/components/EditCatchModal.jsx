@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
+import API_BASE from '../apiConfig';
 
-const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
+const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor, revierweltEnabled }) => {
     const [formData, setFormData] = useState({
         name: '',
         location: '',
-        alias: ''
+        alias: '',
+        revierweltWebhookUrl: ''
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -15,7 +17,8 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
             setFormData({
                 name: catchSensor.name || '',
                 location: catchSensor.location || '',
-                alias: catchSensor.alias || ''
+                alias: catchSensor.alias || '',
+                revierweltWebhookUrl: catchSensor.revierweltWebhookUrl || ''
             });
         }
     }, [catchSensor]);
@@ -28,7 +31,7 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
         setError('');
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch(`/api/catches/${catchSensor.id}`, {
+            const response = await fetch(`${API_BASE}/api/catches/${catchSensor.id}`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -95,11 +98,43 @@ const EditCatchModal = ({ isOpen, onClose, onEdit, catchSensor }) => {
                         />
                     </div>
 
+                    {revierweltEnabled && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 font-mono text-[10px] text-green-700">Revierwelt Webhook (optional)</label>
+                            <input
+                                type="text"
+                                value={formData.revierweltWebhookUrl}
+                                onChange={(e) => setFormData({ ...formData, revierweltWebhookUrl: e.target.value })}
+                                className="w-full bg-green-50/30 border border-green-100/50 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-600/20 outline-none transition-all text-sm"
+                                placeholder="https://revierwelt.de/webhook/..."
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1 italic px-1">Wird bei jedem Fang automatisch aufgerufen.</p>
+                        </div>
+                    )}
+
                     <div className="bg-amber-50 rounded-xl p-4 border border-amber-100 mt-6">
-                        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider mb-1">Hinweis</p>
-                        <p className="text-xs text-amber-900 leading-relaxed">
+                        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider mb-1">Geräte-Info</p>
+                        <p className="text-xs text-amber-900 leading-relaxed mb-2">
                             Die Geräte-Kennung ({catchSensor.type === 'LORAWAN' ? 'Device ID' : 'IMEI'}) kann aus Sicherheitsgründen nicht geändert werden.
                         </p>
+                        {catchSensor.type === 'NB-IOT' && (
+                            <div className="pt-2 border-t border-amber-200/50 mt-2 space-y-2">
+                                <div className="flex justify-between items-center text-[10px]">
+                                    <span className="text-amber-700 font-bold uppercase">Handshake Status:</span>
+                                    <span className={`font-black ${catchSensor.isProvisioned ? 'text-green-600' : 'text-amber-600'}`}>
+                                        {catchSensor.isProvisioned ? '🔐 VERSCHLÜSSELT' : '⚠️ NICHT PROVISIONIERT'}
+                                    </span>
+                                </div>
+                                {catchSensor.isProvisioned && catchSensor.aesKey && (
+                                    <div className="flex flex-col text-[10px]">
+                                        <span className="text-amber-700 font-bold uppercase mb-1">AES-Key (Handshake):</span>
+                                        <span className="font-mono bg-white/50 p-1.5 rounded border border-amber-200/30 break-all">
+                                            {catchSensor.aesKey}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-3 pt-6">

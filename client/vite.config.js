@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,6 +10,7 @@ const __dirname = path.dirname(__filename);
 // ...
 
 export default defineConfig({
+  envDir: '../',
   server: {
     host: true,
     https: false, // Switch to HTTP for mobile compatibility
@@ -30,71 +30,5 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src',
-      filename: 'sw.js',
-      registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
-      manifestFilename: 'manifest.webmanifest', // Explicitly set it
-      manifest: {
-        name: 'CatchSensor Professional',
-        short_name: 'CatchSensor',
-        description: 'Professionelle Fangüberwachung für Reviere',
-        categories: ['productivity', 'utilities'],
-        id: '/',
-        theme_color: '#1b3a2e',
-        background_color: '#1b3a2e',
-        display: 'standalone',
-        orientation: 'portrait',
-        prefer_related_applications: false,
-        scope: '/',
-        start_url: '/',
-        gcm_sender_id: '103953800507',
-        icons: [
-          {
-            src: '/icons/fox-logo.png',
-            sizes: '640x640',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/icons/fox-logo.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/icons/fox-logo.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
-            src: '/icons/fox-logo.png',
-            sizes: '640x640',
-            type: 'image/png',
-            purpose: 'maskable'
-          }
-        ],
-        shortcuts: [
-          {
-            name: 'Status prüfen',
-            url: '/',
-            icons: [{ src: '/icons/fox-logo.png', sizes: '192x192' }]
-          }
-        ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
-        cleanupOutdatedCaches: true,
-        clientsClaim: true,
-        skipWaiting: true
-      },
-      devOptions: {
-        enabled: true,
-        type: 'module', // Necessary for Service Worker in dev
-      }
-    }),
   ],
 })

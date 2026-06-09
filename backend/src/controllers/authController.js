@@ -7,6 +7,23 @@ const generateToken = (id) => {
     });
 };
 
+/**
+ * Refresh Token
+ * Called by the client shortly before the current token expires.
+ * Requires a valid (not yet expired) token via the protect middleware.
+ * Returns a fresh 30-day token so the user stays logged in indefinitely.
+ */
+const refreshToken = async (req, res) => {
+    try {
+        const newToken = generateToken(req.user.id);
+        console.log(`Auth: 🔄 Token refreshed for user ${req.user.id}`);
+        res.json({ token: newToken });
+    } catch (error) {
+        console.error('Token refresh error:', error);
+        res.status(500).json({ message: 'Server error during token refresh' });
+    }
+};
+
 const registerUser = async (req, res) => {
     const { email, name, password } = req.body;
 
@@ -85,10 +102,7 @@ const getMe = async (req, res) => {
         attributes: { exclude: ['password'] }
     });
     if (user) {
-        // Add VAPID public key to the response so the frontend doesn't need it at build time
-        const response = user.toJSON();
-        response.vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
-        res.json(response);
+        res.json(user.toJSON());
     } else {
         res.status(404).json({ message: 'User not found' });
     }
@@ -103,7 +117,9 @@ const updateProfile = async (req, res) => {
             batteryThreshold,
             batteryAlertInterval,
             offlineAlertInterval,
-            catchAlertInterval
+            catchAlertInterval,
+            pushoverEnabled,
+            revierweltEnabled
         } = req.body;
         const user = await User.findByPk(req.user.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -115,6 +131,8 @@ const updateProfile = async (req, res) => {
         if (batteryAlertInterval !== undefined) user.batteryAlertInterval = batteryAlertInterval;
         if (offlineAlertInterval !== undefined) user.offlineAlertInterval = offlineAlertInterval;
         if (catchAlertInterval !== undefined) user.catchAlertInterval = catchAlertInterval;
+        if (pushoverEnabled !== undefined) user.pushoverEnabled = pushoverEnabled;
+        if (revierweltEnabled !== undefined) user.revierweltEnabled = revierweltEnabled;
 
         await user.save();
         res.json({
@@ -129,7 +147,9 @@ const updateProfile = async (req, res) => {
                 batteryThreshold: user.batteryThreshold,
                 batteryAlertInterval: user.batteryAlertInterval,
                 offlineAlertInterval: user.offlineAlertInterval,
-                catchAlertInterval: user.catchAlertInterval
+                catchAlertInterval: user.catchAlertInterval,
+                pushoverEnabled: user.pushoverEnabled,
+                revierweltEnabled: user.revierweltEnabled
             }
         });
     } catch (error) {
@@ -144,6 +164,7 @@ module.exports = {
     getMe,
     changePassword,
     updateProfile,
+    refreshToken,
 };
 
 

@@ -37,7 +37,7 @@ async function main() {
         catchSensor.status = 'triggered';
         catchSensor.batteryVoltage = 3850;
         catchSensor.batteryPercent = 90;
-        catchSensor.rssi = -65;
+        catchSensor.rsrp = -65;
         catchSensor.lastSeen = new Date();
         await catchSensor.save();
 
@@ -48,7 +48,7 @@ async function main() {
             type: 'alarm',
             status: 'triggered',
             batteryPercent: 90,
-            rssi: -65
+            rsrp: -65
         });
 
         console.log('✅ Database updated. Triggering notification...');

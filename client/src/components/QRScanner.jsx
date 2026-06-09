@@ -42,7 +42,13 @@ const QRScanner = ({ onScan, onClose }) => {
                 );
             } catch (err) {
                 console.error("Unable to start scanner", err);
-                setError("Kamera konnte nicht gestartet werden. Bitte prüfen Sie die Berechtigungen.");
+                if (err.name === 'NotAllowedError' || err === 'NotAllowedError') {
+                    setError("Kamera-Zugriff verweigert. Bitte erlauben Sie der App den Zugriff auf die Kamera in den Android-Einstellungen.");
+                } else if (err.name === 'NotFoundError' || err === 'NotFoundError') {
+                    setError("Keine Kamera gefunden.");
+                } else {
+                    setError("Kamera konnte nicht gestartet werden: " + (err.message || err));
+                }
             }
         };
 

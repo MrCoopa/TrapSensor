@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Battery, Signal } from 'lucide-react';
 import BatteryIndicator from './BatteryIndicator';
+import API_BASE from '../apiConfig';
 import SignalIndicator from './SignalIndicator';
 
 const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
@@ -11,7 +12,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
             const fetchReadings = async () => {
                 try {
                     const token = localStorage.getItem('token');
-                    const response = await fetch(`/api/readings/${catchSensor.id}`, {
+                    const response = await fetch(`${API_BASE}/api/readings/${catchSensor.id}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -47,19 +48,27 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                             <div className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
                                 <BatteryIndicator percentage={catchSensor.batteryPercent || 0} className="mr-2" /> Batterie
                             </div>
-                            <div className="text-lg font-bold text-gray-900">{((catchSensor.batteryVoltage || 0) / 1000).toFixed(1).replace('.', ',')} V</div>
+                            <div className="text-lg font-bold text-gray-900">{catchSensor.batteryPercent || 0}%</div>
+                            <div className="text-[10px] text-gray-400 font-medium">{((catchSensor.batteryVoltage || 0) / 1000).toFixed(2).replace('.', ',')} V</div>
                         </div>
                         <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col justify-center">
-                            <div className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
-                                <SignalIndicator rssi={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rssi} className="mr-2" /> Signal
+                             <div className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-widest mb-1">
+                                <SignalIndicator 
+                                    rsrp={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.loraRssi : catchSensor.rsrp} 
+                                    rsrq={catchSensor.type === 'NB-IOT' ? catchSensor.rsrq : undefined}
+                                    sinr={catchSensor.type === 'NB-IOT' ? catchSensor.sinr : undefined}
+                                    snr={catchSensor.type === 'LORAWAN' ? catchSensor.lorawanCatchSensor?.snr : undefined} 
+                                    type={catchSensor.type} 
+                                    className="mr-2" 
+                                /> Signal
                             </div>
                             <div className="flex flex-col">
-                                <div className="text-lg font-bold text-gray-900 leading-none">{catchSensor.type === 'LORAWAN' ? (catchSensor.lorawanCatchSensor?.loraRssi || 0) : (catchSensor.rssi || 0)} dBm</div>
-                                {catchSensor.lorawanCatchSensor && (
+                                <div className="text-lg font-bold text-gray-900 leading-none">{catchSensor.type === 'LORAWAN' ? (catchSensor.lorawanCatchSensor?.loraRssi || 0) : (catchSensor.rsrp || 0)} dBm</div>
+                                 {catchSensor.lorawanCatchSensor && (
                                     <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
                                         <div className="flex flex-col">
                                             <span className="text-[8px] uppercase text-gray-400 font-bold">SNR</span>
-                                            <span className="text-[10px] font-bold text-gray-700">{Number(catchSensor.lorawanCatchSensor.snr).toFixed(1)}</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.lorawanCatchSensor?.snr != null ? Number(catchSensor.lorawanCatchSensor.snr).toFixed(1) : 'N/A'}</span>
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="text-[8px] uppercase text-gray-400 font-bold">SF</span>
@@ -81,6 +90,18 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                         )}
                                     </div>
                                 )}
+                                {catchSensor.type === 'NB-IOT' && (catchSensor.rsrq != null || catchSensor.sinr != null) && (
+                                    <div className="grid grid-cols-2 gap-2 mt-2 p-2 bg-white/50 rounded-lg border border-gray-100">
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase text-gray-400 font-bold">RSRQ</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.rsrq != null ? catchSensor.rsrq + ' dB' : 'N/A'}</span>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] uppercase text-gray-400 font-bold">SINR</span>
+                                            <span className="text-[10px] font-bold text-gray-700">{catchSensor.sinr != null ? catchSensor.sinr + ' dB' : 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -95,7 +116,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                 {/* Header: Status & Date */}
                                 <div className="flex justify-between items-center mb-3">
                                     <p className={`font-black text-xs tracking-widest uppercase ${reading.status === 'triggered' ? 'text-red-600' : 'text-green-600'}`}>
-                                        {reading.status === 'triggered' ? '⚡ FANG!' : '✔️ ONLINE'}
+                                        {reading.status === 'triggered' ? '❌ FANG!' : '✅ ONLINE'}
                                     </p>
                                     <p className="text-[10px] text-gray-400 font-medium">
                                         {new Date(reading.timestamp).toLocaleString('de-DE')}
@@ -110,7 +131,7 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                         <BatteryIndicator percentage={reading.batteryPercent || 0} />
                                         <div className="flex flex-col">
                                             <span className="text-[12px] font-black text-gray-700 leading-none">{reading.batteryPercent || 0}%</span>
-                                            <span className="text-[10px] text-gray-400 font-medium">{((reading.value || 0) / 1000).toFixed(1).replace('.', ',')} V</span>
+                                            <span className="text-[10px] text-gray-400 font-medium">{((reading.value || 0) / 1000).toFixed(2).replace('.', ',')} V</span>
                                         </div>
                                     </div>
 
@@ -118,17 +139,40 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
                                     <div className="flex flex-1 items-center gap-3 overflow-x-auto custom-scrollbar pb-1">
                                         {/* Signal (RSSI) */}
                                         <div className="flex items-center space-x-2 shrink-0">
-                                            <SignalIndicator rssi={reading.rssi} />
-                                            <span className="text-[12px] font-black text-gray-500 leading-none">{reading.rssi || 0} dBm</span>
+                                            <SignalIndicator 
+                                                rsrp={reading.rsrp} 
+                                                rsrq={catchSensor.type === 'NB-IOT' ? reading.rsrq : undefined}
+                                                sinr={catchSensor.type === 'NB-IOT' ? reading.sinr : undefined}
+                                                snr={reading.snr} 
+                                                type={catchSensor.type} 
+                                            />
+                                            <span className="text-[12px] font-black text-gray-500 leading-none">{reading.rsrp || 0} dBm</span>
                                         </div>
 
+                                        {/* Extended Metadata (NB-IoT only) */}
+                                        {catchSensor.type === 'NB-IOT' && (reading.rsrq != null || reading.sinr != null) && (
+                                            <>
+                                                {reading.rsrq != null && (
+                                                    <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
+                                                        <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">RSRQ</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.rsrq} dB</span>
+                                                    </div>
+                                                )}
+                                                {reading.sinr != null && (
+                                                    <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
+                                                        <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">SINR</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.sinr} dB</span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                         {/* Extended Metadata (LoRaWAN only) */}
                                         {catchSensor.type === 'LORAWAN' && (reading.snr !== undefined || reading.spreadingFactor) && (
                                             <>
                                                 {reading.snr !== undefined && (
                                                     <div className="flex items-center bg-white px-2 py-1 rounded-md border border-gray-100 shadow-sm shrink-0">
                                                         <span className="text-[8px] uppercase text-gray-400 font-bold mr-1">SNR</span>
-                                                        <span className="text-[10px] font-bold text-gray-700">{Number(reading.snr).toFixed(1)}</span>
+                                                        <span className="text-[10px] font-bold text-gray-700">{reading.snr != null ? Number(reading.snr).toFixed(1) : 'N/A'}</span>
                                                     </div>
                                                 )}
                                                 {reading.spreadingFactor && (

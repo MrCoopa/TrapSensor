@@ -1,0 +1,20 @@
+{
+  "appId": "com.catchsensor.app",
+  "appName": "CatchSensor",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ],
+      "iconColor": "#1b3a2e",
+      "smallIcon": "ic_stat_notification"
+    }
+  }
+}

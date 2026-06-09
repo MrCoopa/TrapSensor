@@ -12,7 +12,8 @@ const User = sequelize.define('User', {
     email: {
         type: DataTypes.STRING,
         allowNull: false,
-        unique: true,
+        // Do NOT use unique: true here — it creates anonymous indexes that accumulate on every sync({ alter: true }).
+        // Use a named index in the model options below instead.
         validate: {
             isEmail: true,
         },
@@ -42,24 +43,38 @@ const User = sequelize.define('User', {
         type: DataTypes.BOOLEAN,
         defaultValue: true,
     },
+    pushoverEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
+    revierweltEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
     batteryThreshold: {
         type: DataTypes.INTEGER,
-        defaultValue: 20,
+        defaultValue: 15,
     },
     batteryAlertInterval: {
         type: DataTypes.INTEGER,
-        defaultValue: 24, // hours
+        defaultValue: 8, // hours between battery alerts
     },
     offlineAlertInterval: {
         type: DataTypes.INTEGER,
-        defaultValue: 24, // hours
+        defaultValue: 8, // hours between offline alerts
     },
     catchAlertInterval: {
         type: DataTypes.INTEGER,
-        defaultValue: 1, // hours
+        defaultValue: 3, // hours between triggered (catch) re-alerts
     }
 }, {
-
+    indexes: [
+        {
+            unique: true,
+            fields: ['email'],
+            name: 'users_email_unique'  // Named — Sequelize won't create duplicates
+        }
+    ],
     hooks: {
         beforeSave: async (user) => {
             if (user.changed('password')) {

@@ -3,10 +3,14 @@ version: '3.8'
 services:
   app:
     container_name: catchsensor_app
-    build: .
+    build:
+      context: .
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
     ports:
       - "5000:5000"
       - "1884:1884"
+      - "1885:1885"
     environment:
       - PORT=5000
       - DB_HOST=catchsensor_db
@@ -14,13 +18,44 @@ services:
       - DB_PASS=root
       - DB_NAME=catchsensor
       - NODE_ENV=production
-      - JWT_SECRET=please_change_this_for_production
-      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
-      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - VITE_API_URL=${VITE_API_URL}
+      - VITE_CONNECTIVITY_MODE=${VITE_CONNECTIVITY_MODE}
+      - VITE_API_URL_IP=${VITE_API_URL_IP}
+      - VITE_API_URL_DNS=${VITE_API_URL_DNS}
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:5000}
+      - APP_BASE_URL_IP=${APP_BASE_URL_IP}
+      - APP_BASE_URL_DNS=${APP_BASE_URL_DNS}
+      - FIREBASE_SERVICE_ACCOUNT_B64=${FIREBASE_SERVICE_ACCOUNT_B64}
+      # Internal MQTT Broker Auth
+      - INTERNAL_MQTT_USER=${INTERNAL_MQTT_USER}
+      - INTERNAL_MQTT_PASS=${INTERNAL_MQTT_PASS}
+      # LoRaWAN (TTN) MQTT
+      - TTN_MQTT_BROKER=${TTN_MQTT_BROKER:-eu1.cloud.thethings.network}
+      - TTN_MQTT_PORT=${TTN_MQTT_PORT:-1883}
+      - TTN_MQTT_USER=${TTN_MQTT_USER}
+      - TTN_MQTT_PASS=${TTN_MQTT_PASS}
+      - TTN_MQTT_TOPIC=${TTN_MQTT_TOPIC:-#}
+      # NB-IoT External Broker (Optional as Aedes is used internally)
+      - NBIOT_MQTT_BROKER=${NBIOT_MQTT_BROKER}
+      - NBIOT_MQTT_PORT=${NBIOT_MQTT_PORT:-1883}
+      - NBIOT_MQTT_USER=${NBIOT_MQTT_USER}
+      - NBIOT_MQTT_PASS=${NBIOT_MQTT_PASS}
+      - NBIOT_MQTT_TOPIC=${NBIOT_MQTT_TOPIC:-catches/+/data}
+      # Additional Notification Config
+      - PUSHOVER_USER=${PUSHOVER_USER}
+      - PUSHOVER_TOKEN=${PUSHOVER_TOKEN}
+      - FCM_SERVER_KEY=${FCM_SERVER_KEY}
+      # Encryption Keys
+      - AES_SECRET_KEY=${AES_SECRET_KEY}
+      - MASTER_SALT=${MASTER_SALT}
     depends_on:
       catchsensor_db:
         condition: service_healthy
     restart: always
+    networks:
+      - default
+      - npm_shared # Allows Nginx Proxy Manager to reach this container by name
 
   catchsensor_db:
     image: mariadb:latest
@@ -33,7 +68,7 @@ services:
     volumes:
       - catchsensor_db_data:/var/lib/mysql
     healthcheck:
-      test: [ "CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -41,3 +76,9 @@ services:
 
 volumes:
   catchsensor_db_data:
+
+
+networks:
+  npm_shared:
+    external: true
+    name: nginx-proxy-manager_default

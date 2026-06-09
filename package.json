@@ -19,12 +19,12 @@
   },
   "homepage": "https://github.com/MrCoopa/CatchSensor#readme",
   "dependencies": {
-    "aedes": "^1.0.0",
-    "aedes-server-factory": "^0.2.1",
+    "aedes": "^0.50.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "firebase-admin": "^13.6.1",
     "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.3",
     "mariadb": "^3.4.5",
@@ -35,7 +35,9 @@
     "pushover-notifications": "^1.2.3",
     "sequelize": "^6.37.7",
     "socket.io": "^4.8.3",
-    "web-push": "^3.6.7"
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "websocket-stream": "^5.5.2"
   },
   "devDependencies": {
     "selfsigned": "^5.5.0"

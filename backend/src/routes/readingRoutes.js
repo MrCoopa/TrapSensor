@@ -48,7 +48,7 @@ router.post('/', async (req, res) => {
         const updates = { lastSeen: new Date() };
         if (batteryVoltage !== undefined) updates.batteryVoltage = batteryVoltage;
         if (batteryPercent !== undefined) updates.batteryPercent = batteryPercent;
-        if (signalStrength !== undefined) updates.rssi = signalStrength; // Mapping signalStrength to rssi
+        if (signalStrength !== undefined) updates.rsrp = signalStrength; // Mapping signalStrength to rsrp
         if (status !== undefined) updates.status = status;
 
         await catchSensor.update(updates);

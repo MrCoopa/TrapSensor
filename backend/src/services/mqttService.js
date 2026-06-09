@@ -1,3 +1,5 @@
+const { Op } = require('sequelize');
+const crypto = require('crypto');
 const mqtt = require('mqtt');
 const CatchSensor = require('../models/CatchSensor');
 const Reading = require('../models/Reading');
@@ -7,15 +9,27 @@ const PushSubscription = require('../models/PushSubscription');
 const LoraMetadata = require('../models/LoraMetadata');
 const { sendUnifiedNotification } = require('./notificationService');
 
+/** Convert battery voltage (mV) to percentage. Range: 3300mV (0%) → 4200mV (100%) */
+const voltageToBatteryPercent = (mV) => Math.min(100, Math.max(0, Math.floor((mV - 3300) / 9)));
+
+
+let globalAedes = null;
+
 const setupMQTT = (io, aedes) => {
+    globalAedes = aedes;
     // 1. Path A: Internal NB-IoT Broker (Aedes)
+
     if (aedes) {
-        console.log('MQTT: ✅ Internal NB-IoT Broker active (Aedes)');
         aedes.on('publish', async (packet, client) => {
             if (packet.topic.startsWith('$SYS')) return; // Ignore system topics
             console.log(`MQTT: 📥 Internal Broker received publish on: ${packet.topic}`);
-            if (packet.topic && packet.topic.startsWith('catches/') && packet.topic.endsWith('/data')) {
-                handleMQTTMessage(packet.topic, packet.payload, io, 'NB-IOT');
+
+            if (packet.topic && packet.topic.startsWith('catches/')) {
+                if (packet.topic.endsWith('/data')) {
+                    handleMQTTMessage(packet.topic, packet.payload, io, 'NB-IOT');
+                } else if (packet.topic.endsWith('/provision')) {
+                    handleProvisioningMessage(packet.topic, packet.payload, io);
+                }
             }
         });
     }
@@ -36,81 +50,270 @@ const setupMQTT = (io, aedes) => {
     if (process.env.TTN_MQTT_USER) {
         const ttnPort = process.env.TTN_MQTT_PORT || 1883;
         const protocol = ttnPort == 8883 ? 'mqtts' : 'mqtt';
+        const brokerUrl = `${protocol}://${process.env.TTN_MQTT_BROKER || 'eu1.cloud.thethings.network'}:${ttnPort}`;
+
+        console.log(`MQTT: 🔍 TTN Config Check - User: ${process.env.TTN_MQTT_USER?.substring(0, 5)}..., Pass-Length: ${process.env.TTN_MQTT_PASS?.length}, URL: ${brokerUrl}`);
 
         connectToBroker({
             name: 'LoRaWAN (TTN)',
-            url: `${protocol}://${process.env.TTN_MQTT_BROKER || 'eu1.cloud.thethings.network'}`,
-            port: ttnPort,
+            url: brokerUrl,
             username: process.env.TTN_MQTT_USER,
             password: process.env.TTN_MQTT_PASS,
             topic: '#' // Use wildcard as specific topics are being rejected
         }, (topic, payload) => {
-            console.log(`MQTT: TTN Raw Topic: ${topic}`);
             if (topic.endsWith('/up')) {
                 handleMQTTMessage(topic, payload, io, 'LORAWAN');
             } else {
                 console.log(`MQTT: Ignored TTN Topic: ${topic}`);
             }
         });
+    } else {
+        console.log('MQTT: ℹ️ LoRaWAN (TTN) not configured (missing TTN_MQTT_USER).');
     }
 };
 
+const CIRCUIT_BREAKER_THRESHOLD = 10;   // open circuit after this many consecutive failures
+const CIRCUIT_BREAKER_RESET_MS   = 10 * 60 * 1000; // retry after 10 minutes
+const BACKOFF_BASE_MS             = 1_000;           // initial retry delay: 1 second
+const BACKOFF_MAX_MS              = 5 * 60 * 1000;  // maximum retry delay: 5 minutes
+
 const connectToBroker = (config, onMessage) => {
-    console.log(`MQTT: Connecting to ${config.name} Broker: ${config.url}`);
-    const client = mqtt.connect(config.url, {
-        port: config.port,
-        username: config.username,
-        password: config.password,
-    });
+    let consecutiveFailures = 0;
+    let circuitOpenedAt     = null;
+    let backoffMs           = BACKOFF_BASE_MS;
+    let reconnectTimer      = null;
 
-    client.on('connect', () => {
-        console.log(`MQTT: ✅ Connected to ${config.name} Broker`);
-        client.subscribe(config.topic, (err) => {
-            if (err) console.error(`MQTT: Failed to subscribe to ${config.topic}`, err);
-            else console.log(`MQTT: Subscribed to ${config.topic}`);
-        });
-    });
-
-    client.on('packetreceive', (packet) => {
-        if (packet.cmd === 'publish') {
-            console.log(`MQTT: DEBUG - Packet received on topic: ${packet.topic}`);
+    const attempt = () => {
+        // Circuit breaker: if open, wait until reset period has elapsed
+        if (circuitOpenedAt !== null) {
+            const elapsed = Date.now() - circuitOpenedAt;
+            if (elapsed < CIRCUIT_BREAKER_RESET_MS) {
+                const remaining = Math.round((CIRCUIT_BREAKER_RESET_MS - elapsed) / 1000);
+                console.warn(`MQTT: ⚡ ${config.name} circuit OPEN — skipping reconnect. Retrying in ${remaining}s.`);
+                reconnectTimer = setTimeout(attempt, CIRCUIT_BREAKER_RESET_MS - elapsed);
+                return;
+            }
+            // Reset circuit after the cooling-off period
+            console.log(`MQTT: 🔄 ${config.name} circuit reset — attempting reconnect.`);
+            circuitOpenedAt     = null;
+            consecutiveFailures = 0;
+            backoffMs           = BACKOFF_BASE_MS;
         }
-    });
 
-    client.on('message', (topic, payload) => {
-        console.log(`MQTT: Received message on ${config.name} topic: ${topic}`);
-        onMessage(topic, payload);
-    });
+        console.log(`MQTT: Connecting to ${config.name} Broker: ${config.url}`);
 
-    client.on('error', (err) => {
-        console.error(`MQTT ${config.name} Error:`, err);
-    });
+        // Disable the mqtt library's built-in auto-reconnect so we control the timing.
+        const client = mqtt.connect(config.url, {
+            username:        config.username,
+            password:        config.password,
+            reconnectPeriod: 0,       // disables automatic reconnect
+            connectTimeout:  15_000,  // 15s connect timeout
+        });
 
-    return client;
+        client.on('connect', () => {
+            console.log(`MQTT: ✅ Connected to ${config.name} Broker`);
+            consecutiveFailures = 0;
+            backoffMs           = BACKOFF_BASE_MS;
+            circuitOpenedAt     = null;
+
+            client.subscribe(config.topic, (err) => {
+                if (err) console.error(`MQTT: Failed to subscribe to ${config.topic}`, err);
+                else console.log(`MQTT: Subscribed to ${config.topic}`);
+            });
+        });
+
+        client.on('packetreceive', (packet) => {
+            if (packet.cmd === 'publish') {
+                // Keep minimal for production
+            }
+        });
+
+        client.on('message', (topic, payload) => {
+            console.log(`MQTT: Received message on ${config.name} topic: ${topic}`);
+            onMessage(topic, payload);
+        });
+
+        const scheduleReconnect = (reason) => {
+            client.end(true); // force-close without waiting
+
+            consecutiveFailures++;
+            console.error(`MQTT ${config.name} ${reason} (failure #${consecutiveFailures}). Retrying in ${Math.round(backoffMs / 1000)}s.`);
+
+            if (consecutiveFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+                circuitOpenedAt = Date.now();
+                console.error(`MQTT: 🚨 ${config.name} circuit OPENED after ${consecutiveFailures} failures. Pausing for ${CIRCUIT_BREAKER_RESET_MS / 60000} minutes.`);
+                reconnectTimer = setTimeout(attempt, CIRCUIT_BREAKER_RESET_MS);
+                return;
+            }
+
+            reconnectTimer = setTimeout(() => {
+                backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+                attempt();
+            }, backoffMs);
+        };
+
+        client.on('error', (err) => {
+            // Only log the message, not the full stack, to keep logs clean on DNS errors
+            scheduleReconnect(`Error: ${err.message}`);
+        });
+
+        client.on('close', () => {
+            // 'close' fires after a clean disconnect or after 'error'. Only act if not already
+            // scheduled for reconnect (i.e. the close wasn't caused by our own client.end()).
+            if (!reconnectTimer && consecutiveFailures > 0) {
+                scheduleReconnect('Connection closed');
+            }
+        });
+    };
+
+    attempt();
 };
 
+const MASTER_SALT = process.env.MASTER_SALT || '';
+
+console.log(`MQTT: 🔐 Encryption Init - MASTER_SALT: ${MASTER_SALT ? 'PRESENT (Configured)' : 'MISSING (Handshake mode active)'}`);
+
+/**
+ * Derives a 32-byte AES-256 key from an IMEI and the MASTER_SALT.
+ */
+function deriveKey(imei) {
+    if (!MASTER_SALT) return null;
+    return crypto.createHash('sha256').update(imei + MASTER_SALT).digest();
+}
+
+const lastPayloads = new Map(); // Cache for DDoS prevention: IMEI -> { payloadHex, count, firstSeen }
 
 const handleMQTTMessage = async (topic, payload, io, pathType) => {
     try {
         let normalizedData = null;
         let deviceId = null;
+        let catchSensor = null;
+        let realImei = null;
 
         if (pathType === 'NB-IOT') {
-            // Path A: NB-IoT Binary (4 Bytes)
-            // Payload format: [Status (1), Voltage (2), RSSI (1)]
-            if (payload.length < 4) return;
-
             deviceId = topic.split('/')[1];
-            const statusByte = payload.readUInt8(0);
-            const voltage = payload.readUInt16BE(1);
-            const rssi = payload.readUInt8(3);
+            const payloadHex = payload.toString().toUpperCase();
+
+            // DDoS/Flooding Protection: Track repetitions within 24h
+            const cacheEntry = lastPayloads.get(deviceId);
+            const now = Date.now();
+
+            if (cacheEntry && cacheEntry.payloadHex === payloadHex) {
+                cacheEntry.count++;
+
+                // Start the 24h window only at the first REPETITION (i.e. second identical packet)
+                if (cacheEntry.count === 2) {
+                    cacheEntry.firstRepetitionAt = now;
+                }
+
+                const timeDiff = cacheEntry.firstRepetitionAt ? (now - cacheEntry.firstRepetitionAt) : 0;
+
+                // If more than 3 identical packets (1 original + 3 reps) within 24 hours of the first rep
+                if (cacheEntry.count > 3 && timeDiff < 24 * 60 * 60 * 1000) {
+                    console.error(`MQTT: ⚠️ KRITISCH: Melder ${deviceId} wird geflutet! Identisches Paket bereits ${cacheEntry.count}x innerhalb von 24h empfangen.`);
+                } else {
+                    console.warn(`MQTT: 🛡️ DDoS protection for ${deviceId}. Rejected identical payload.`);
+                }
+                return;
+            }
+
+            // New or different payload: Reset cache entry
+            lastPayloads.set(deviceId, {
+                payloadHex,
+                count: 1,
+                firstRepetitionAt: null
+            });
+
+            let dataBuffer = payload;
+            const MASTER_SALT = process.env.MASTER_SALT || '';
+
+            // 1. Fetch internal CatchSensor record
+            // We search for clear IMEI first, then Hash
+            catchSensor = await CatchSensor.findOne({ where: { imei: deviceId } });
+            realImei = deviceId;
+
+            if (!catchSensor) {
+                // Topic identifier is likely a hash. Scan all sensors to find match.
+                const allSensors = await CatchSensor.findAll({ where: { imei: { [Op.ne]: null } } });
+                for (const s of allSensors) {
+                    const hash = crypto.createHash('sha256').update(s.imei + MASTER_SALT).digest('hex').substring(0, 16).toUpperCase();
+                    if (hash === deviceId.toUpperCase()) {
+                        catchSensor = s;
+                        realImei = s.imei;
+                        console.log(`MQTT: 🕵️‍♂️ Anonymized topic match! Hash ${deviceId} -> IMEI ${realImei}`);
+                        break;
+                    }
+                }
+            }
+
+            // 2. Encryption Logic
+            // Priority: Derived Key (from REAL IMEI + SALT) > Individual Key (DB) > Global Key
+            const derivedKey = deriveKey(realImei);
+            const globalKey = process.env.AES_SECRET_KEY;
+            
+            let keyBuffer = null;
+            if (derivedKey) {
+                console.log(`MQTT: 🔐 Using DERIVED key for ${realImei} (Master Salt active)`);
+                keyBuffer = derivedKey;
+            } else if (catchSensor?.isProvisioned && catchSensor.aesKey?.length === 64) {
+                console.log(`MQTT: 🔐 Using stored INDIVIDUAL key for ${realImei}`);
+                keyBuffer = Buffer.from(catchSensor.aesKey, 'hex');
+            } else if (globalKey && globalKey.length === 32) {
+                console.log(`MQTT: 🔐 Falling back to GLOBAL key for ${realImei}`);
+                keyBuffer = Buffer.from(globalKey);
+            }
+
+            if (payload.length === 32 && keyBuffer) {
+                try {
+                    const decrypted = Buffer.from(payload.toString(), 'hex');
+                    const decipher = crypto.createDecipheriv('aes-256-ecb', keyBuffer, null);
+                    decipher.setAutoPadding(false);
+                    dataBuffer = Buffer.concat([decipher.update(decrypted), decipher.final()]);
+                    console.log(`MQTT: 🔐 Decrypted AES-256 payload for ${realImei} using ${derivedKey ? 'DERIVED' : (catchSensor?.isProvisioned ? 'INDIVIDUAL' : 'GLOBAL')} key`);
+                } catch (decErr) {
+                    console.error(`MQTT: ❌ AES Decryption failed for ${realImei}:`, decErr.message);
+                    return; // Fail if decryption is attempted but fails
+                }
+            } else if (payload.length === 8) {
+                // Handle unencrypted 8-char hex string (4 bytes)
+                if (keyBuffer) {
+                    console.error(`MQTT: ❌ Security violation: Received unencrypted payload for encrypted device ${realImei}`);
+                    return; // Reject unencrypted payload for encrypted device
+                }
+                dataBuffer = Buffer.from(payload.toString(), 'hex');
+            }
+
+            if (dataBuffer.length < 4) {
+                console.error(`MQTT: ⚠️ Invalid payload length (${dataBuffer.length}) for NB-IOT device ${realImei}`);
+                return;
+            }
+
+            const statusByte = dataBuffer.readUInt8(0);
+            const voltage = dataBuffer.readUInt16BE(1);
+            const rsrp = dataBuffer.readUInt8(3);
+
+            // Extract Counter from bytes 4-7 (UInt32BE) if payload is 16 bytes
+            let fCnt = 0;
+            if (dataBuffer.length >= 8) {
+                fCnt = dataBuffer.readUInt32BE(4);
+            }
+
+            let rsrq = null;
+            let sinr = null;
+            if (dataBuffer.length >= 10) {
+                rsrq = -dataBuffer.readUInt8(8); // Store as negative dB
+                sinr = dataBuffer.readInt8(9);  // Store as signed dB
+            }
 
             normalizedData = {
                 type: 'NB-IOT',
                 status: statusByte === 0x01 ? 'active' : 'triggered',
                 batteryVoltage: voltage,
-                batteryPercent: Math.min(100, Math.max(0, Math.floor((voltage - 3300) / 9))), // Approx mapping
-                rssi: -rssi,
+                batteryPercent: voltageToBatteryPercent(voltage),
+                rsrp: -rsrp,
+                rsrq: rsrq,
+                sinr: sinr,
+                fCnt: fCnt,
                 lastReading: new Date()
             };
         } else if (pathType === 'LORAWAN') {
@@ -160,13 +363,14 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                     if (buffer.length >= 4) {
                         batteryPercent = buffer.readUInt8(3);
                     } else {
-                        batteryPercent = Math.min(100, Math.max(0, Math.floor((voltage - 3300) / 9)));
+                        batteryPercent = voltageToBatteryPercent(voltage);
+
                     }
                 }
             }
 
             // Extract Metadata
-            const rssi = uplink.rx_metadata?.[0]?.rssi || 0;
+            const rsrp = uplink.rx_metadata?.[0]?.rssi || 0;
             const snr = uplink.rx_metadata?.[0]?.snr || 0;
             const gatewayId = uplink.rx_metadata?.[0]?.gateway_ids?.gateway_id || 'unknown';
             const gatewayCount = uplink.rx_metadata?.length || 1;
@@ -178,7 +382,7 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
                 type: 'LORAWAN',
                 status: status, // Standardized key
                 batteryPercent,
-                rssi,
+                rsrp,
                 snr,
                 gatewayId,
                 gatewayCount,
@@ -194,24 +398,48 @@ const handleMQTTMessage = async (topic, payload, io, pathType) => {
 
 
 
-        if (normalizedData && deviceId) {
-            await updateCatchSensorData(deviceId, normalizedData, io);
+        if (normalizedData && (deviceId || realImei)) {
+            await updateCatchSensorData(catchSensor || realImei || deviceId, normalizedData, io);
         }
     } catch (err) {
         console.error('MQTT Handler Error:', err);
     }
 };
 
-const updateCatchSensorData = async (deviceId, data, io) => {
+/**
+ * Handles the Trust-On-First-Use (TOFU) Provisioning Handshake
+ * Expected payload: 32-byte (64 hex) individual key encrypted with BOOTSTRAP_KEY
+ */
+const handleProvisioningMessage = async (topic, payload, io) => {
+    const deviceId = topic.split('/')[1];
+    console.log(`MQTT: 🗝️ DEPRECATED provisioning request from ${deviceId}. Device should use Master Salt derivation instead.`);
+};
+
+const updateCatchSensorData = async (deviceIdOrSensor, data, io) => {
     try {
-        let catchSensor = await CatchSensor.findOne({
-            where: data.type === 'NB-IOT' ? { imei: deviceId } : { deviceId: deviceId },
-            include: data.type === 'LORAWAN' ? [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] : []
-        });
+        let catchSensor;
+        let deviceId;
+
+        if (typeof deviceIdOrSensor === 'object' && deviceIdOrSensor !== null) {
+            catchSensor = deviceIdOrSensor;
+            deviceId = catchSensor.imei || catchSensor.deviceId;
+        } else {
+            deviceId = deviceIdOrSensor;
+            catchSensor = await CatchSensor.findOne({
+                where: data.type === 'NB-IOT' ? { imei: deviceId } : { deviceId: deviceId },
+                include: data.type === 'LORAWAN' ? [{ model: LoraMetadata, as: 'lorawanCatchSensor' }] : []
+            });
+        }
 
         console.log(`MQTT: Search result for ${deviceId}: ${catchSensor ? 'Found' : 'NOT FOUND'}`);
 
         if (!catchSensor) {
+            // If it's a hash, we can't auto-provision because we don't know the real IMEI
+            if (data.type === 'NB-IOT' && deviceId.length === 16 && /^[0-9A-F]+$/.test(deviceId.toUpperCase())) {
+                console.warn(`MQTT: 🛑 Received anonymized message for unknown hash ${deviceId}. Auto-provisioning impossible without clear IMEI.`);
+                return;
+            }
+
             console.log(`MQTT: 🆕 Auto-provisioning new device: ${deviceId}`);
             try {
                 catchSensor = await CatchSensor.create({
@@ -233,12 +461,57 @@ const updateCatchSensorData = async (deviceId, data, io) => {
         // 1. Update Core Fields
         catchSensor.type = data.type;
 
+        // Clear acknowledgment ONLY when a new trigger event arrives (transition from active -> triggered).
+        // This prevents "flapping" or heartbeat messages from clearing the user's acknowledgment.
+        if (data.status === 'triggered' && catchSensor.status === 'active') {
+            catchSensor.alarmAcknowledgedAt = null;
+            catchSensor.lastCatchAlert = null;
+        }
+
         if (data.type === 'NB-IOT') {
-            catchSensor.imei = deviceId;
+            // Replay Protection Logic (Variant 1)
+            // If the device sent a counter, validate it.
+            if (data.fCnt !== undefined) {
+                if (data.fCnt <= catchSensor.lastFCnt && catchSensor.lastFCnt >= 0) {
+                    console.warn(`MQTT: ❌ Replay/Old counter detected for ${deviceId}: received=${data.fCnt}, last=${catchSensor.lastFCnt}`);
+
+                    // If counter is significantly lower (e.g. 1-5), it's likely a battery reset.
+                    // This is triggered if the received counter is very low (<= 5) while the stored one is higher.
+                    if (data.fCnt <= 5) {
+                        catchSensor.resyncRequired = true;
+                        await catchSensor.save();
+                        console.log(`MQTT: 🔄 Battery reset (low fCnt ${data.fCnt}) detected for ${deviceId}. Flagged for resync.`);
+
+                        // Notify user about resync requirement
+                        if (catchSensor.userId) {
+                            const user = await User.findByPk(catchSensor.userId);
+                            if (user) {
+                                await sendUnifiedNotification(user, catchSensor, 'RESYNC_REQUIRED');
+                            }
+                        }
+                    } else {
+                        console.log(`MQTT: 🛡️ Silently ignored low-counter replay for active sensor ${deviceId}.`);
+                    }
+                    return; // Reject the message
+                }
+
+                // Check if resync is required and block until manual reset (Strict Variant 1)
+                if (catchSensor.resyncRequired) {
+                    console.warn(`MQTT: 🛑 Blocked message for ${deviceId} - Manual resync required.`);
+                    return;
+                }
+
+                catchSensor.lastFCnt = data.fCnt;
+            }
+
+            // ONLY update IMEI if it's currently null. Never overwrite it with a hash or different value.
+            if (!catchSensor.imei && data.type === 'NB-IOT') catchSensor.imei = deviceId;
             catchSensor.status = data.status || 'active';
             catchSensor.batteryVoltage = data.batteryVoltage;
             catchSensor.batteryPercent = data.batteryPercent;
-            catchSensor.rssi = data.rssi;
+            catchSensor.rsrp = data.rsrp;
+            catchSensor.rsrq = data.rsrq;
+            catchSensor.sinr = data.sinr;
             catchSensor.lastSeen = new Date();
             await catchSensor.save();
         } else {
@@ -253,7 +526,7 @@ const updateCatchSensorData = async (deviceId, data, io) => {
 
             await LoraMetadata.upsert({
                 catchSensorId: catchSensor.id,
-                loraRssi: data.rssi,
+                loraRssi: data.rsrp,
                 snr: data.snr,
                 spreadingFactor: data.spreadingFactor,
                 gatewayId: data.gatewayId,
@@ -274,21 +547,28 @@ const updateCatchSensorData = async (deviceId, data, io) => {
             type: data.status === 'triggered' ? 'alarm' : 'status',
             status: data.status,
             batteryPercent: data.batteryPercent,
-            rssi: data.rssi,
-            snr: data.snr,
+            rsrp: data.rsrp,
+            rsrq: data.rsrq,
+            sinr: data.sinr,
+            snr: data.snr || data.sinr,
             gatewayId: data.gatewayId,
             gatewayCount: data.gatewayCount,
             fCnt: data.fCnt,
             spreadingFactor: data.spreadingFactor
         });
 
-        const roomName = `user_${catchSensor.userId}`;
-        io.to(roomName).emit('catchSensorUpdate', catchSensor);
-        console.log(`MQTT: 📢 Emitted update for ${catchSensor.name} (${deviceId}). Status: ${catchSensor.status}, Batt: ${catchSensor.batteryPercent}%`);
+        // 4. Send Notifications (Wait for these to update timestamps if needed)
+        // Find owner and all users with whom the sensor is shared
+        const userIds = [catchSensor.userId].filter(Boolean);
+        const shares = await CatchShare.findAll({ where: { catchSensorId: catchSensor.id } });
+        shares.forEach(share => {
+            if (!userIds.includes(share.userId)) {
+                userIds.push(share.userId);
+            }
+        });
 
-
-        if (catchSensor.userId) {
-            const user = await User.findByPk(catchSensor.userId);
+        for (const uId of userIds) {
+            const user = await User.findByPk(uId);
             if (user) {
                 const threshold = user.batteryThreshold || 20;
 
@@ -300,6 +580,13 @@ const updateCatchSensorData = async (deviceId, data, io) => {
             }
         }
 
+        // 5. Emit Update to Clients (Now contains the new alert timestamps)
+        userIds.forEach(uId => {
+            const roomName = `user_${uId}`;
+            io.to(roomName).emit('catchSensorUpdate', catchSensor);
+        });
+        console.log(`MQTT: 📢 Emitted update for ${catchSensor.name} (${deviceId}). Status: ${catchSensor.status}, Batt: ${catchSensor.batteryPercent}% to user rooms: ${userIds.join(', ')}`);
+
     } catch (err) {
         console.error('updateCatchSensorData Error:', err);
     }
@@ -307,4 +594,3 @@ const updateCatchSensorData = async (deviceId, data, io) => {
 
 
 module.exports = { setupMQTT };
-

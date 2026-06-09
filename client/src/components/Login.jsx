@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
+import API_BASE from '../apiConfig';
 
 const Login = ({ onLogin, onSwitchToRegister }) => {
     const [email, setEmail] = useState('');
@@ -10,7 +11,7 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
         e.preventDefault();
         setError('');
         try {
-            const response = await fetch('/api/auth/login', {
+            const response = await fetch(`${API_BASE}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),

@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
 import { X, Camera } from 'lucide-react';
+import API_BASE from '../apiConfig';
 import QRScanner from './QRScanner';
 
-const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
+const AddCatchModal = ({ isOpen, onClose, onAdd, revierweltEnabled }) => {
     const [formData, setFormData] = useState({
         name: '',
         location: '',
         imei: '',
         deviceId: '',
-        type: 'NB-IOT'
+        type: 'NB-IOT',
+        revierweltWebhookUrl: '',
+        claimingPin: ''
     });
     const [isScannerOpen, setIsScannerOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -32,7 +35,7 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
         setError('');
         const token = localStorage.getItem('token');
         try {
-            const response = await fetch('/api/catches', {
+            const response = await fetch(`${API_BASE}/api/catches`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -43,7 +46,7 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
             if (response.ok) {
                 const newCatch = await response.json();
                 onAdd(newCatch);
-                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT' });
+                setFormData({ name: '', location: '', imei: '', deviceId: '', type: 'NB-IOT', revierweltWebhookUrl: '', claimingPin: '' });
                 onClose();
 
             } else {
@@ -105,14 +108,13 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
                         />
                     </div>
 
-
                     <div>
                         <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Standort (optional)</label>
                         <input
                             type="text"
                             value={formData.location}
                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                            className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-700 outline-none transition-all"
+                            className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-[#1b3a2e]/20 outline-none transition-all"
                             placeholder="z.B. Obere Dickung / Bachlauf"
                         />
                     </div>
@@ -139,6 +141,34 @@ const AddCatchModal = ({ isOpen, onClose, onAdd }) => {
                             </button>
                         </div>
                     </div>
+
+                    {formData.type === 'NB-IOT' && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Claiming PIN (vom Aufkleber)</label>
+                            <input
+                                required
+                                type="text"
+                                value={formData.claimingPin}
+                                onChange={(e) => setFormData({ ...formData, claimingPin: e.target.value.toUpperCase() })}
+                                className="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-[#1b3a2e]/20 outline-none"
+                                placeholder="z.B. A7X9"
+                            />
+                        </div>
+                    )}
+
+                    {revierweltEnabled && (
+                        <div>
+                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 font-mono text-[10px] text-green-700">Revierwelt Webhook (optional)</label>
+                            <input
+                                type="text"
+                                value={formData.revierweltWebhookUrl}
+                                onChange={(e) => setFormData({ ...formData, revierweltWebhookUrl: e.target.value })}
+                                className="w-full bg-green-50/30 border border-green-100/50 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-green-600/20 outline-none transition-all text-sm"
+                                placeholder="https://revierwelt.de/webhook/..."
+                            />
+                            <p className="text-[10px] text-gray-400 mt-1 italic px-1">Wird bei jedem Fang automatisch aufgerufen.</p>
+                        </div>
+                    )}
 
 
                     {isScannerOpen && (

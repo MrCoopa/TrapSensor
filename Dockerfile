@@ -4,6 +4,8 @@ WORKDIR /app/client
 COPY client/package*.json ./
 RUN npm install --legacy-peer-deps
 COPY client/ ./
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # --- Stage 2: Production Server ---
@@ -20,8 +22,8 @@ COPY backend/ ./backend/
 # Copy built frontend to the expected location for server.js
 COPY --from=frontend-builder /app/client/dist ./client/dist
 
-# Expose ports: 5000 (API/Web), 1884 (MQTT)
-EXPOSE 5000 1884
+# Expose ports: 5000 (API/Web), 1884 (MQTT TCP), 1885 (MQTT WS)
+EXPOSE 5000 1884 1885
 
 ENV NODE_ENV=production
 

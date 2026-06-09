@@ -1,14 +1,15 @@
 const express = require('express');
 const CatchSensor = require('../models/CatchSensor');
 const LoraMetadata = require('../models/LoraMetadata');
+const CatchShare = require('../models/CatchShare');
+const User = require('../models/User');
+const { Op } = require('sequelize');
 const router = express.Router();
 
 
 // Get all catches for the logged-in user (owned + shared)
 router.get('/', async (req, res) => {
     try {
-        const { Op } = require('sequelize');
-        const CatchShare = require('../models/CatchShare');
 
         const sharedShares = await CatchShare.findAll({
             where: { userId: req.user.id },
@@ -37,11 +38,12 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
     console.log('POST /api/catches - Body:', req.body);
     try {
-        const { name, alias, location, imei, deviceId, type = 'NB-IOT' } = req.body;
+        const { name, alias, location, imei, deviceId, type = 'NB-IOT', revierweltWebhookUrl, claimingPin } = req.body;
         const identifier = (type === 'LORAWAN' ? deviceId : imei);
 
         if (!name && !alias) return res.status(400).json({ error: 'Name/Alias ist erforderlich' });
         if (!identifier) return res.status(400).json({ error: `${type === 'LORAWAN' ? 'Device ID' : 'IMEI'} ist erforderlich` });
+        if (type === 'NB-IOT' && !claimingPin) return res.status(400).json({ error: 'Claiming-PIN ist für NB-IOT erforderlich' });
 
         let existingCatch = await CatchSensor.findOne({
             where: {
@@ -54,10 +56,16 @@ router.post('/', async (req, res) => {
                 return res.status(400).json({ error: 'Diese Kennung (IMEI/DeviceID) ist bereits registriert und einem anderen Benutzer zugewiesen.' });
             }
 
-            console.log(`Catch Claiming: User ${req.user.id} is claiming unbound catch ${identifier}`);
+            // For NB-IOT, verify the claiming PIN
+            if (type === 'NB-IOT' && existingCatch.claimingPin !== claimingPin) {
+                return res.status(401).json({ error: 'Ungültige Claiming-PIN für diesen Melder.' });
+            }
+
+            console.log(`Catch Claiming: User ${req.user.id} is claiming catch ${identifier}`);
             existingCatch.name = name || alias;
             existingCatch.alias = alias || name;
             existingCatch.location = location;
+            existingCatch.revierweltWebhookUrl = revierweltWebhookUrl;
             existingCatch.userId = req.user.id;
             existingCatch.type = type;
 
@@ -69,6 +77,7 @@ router.post('/', async (req, res) => {
             name: name || alias,
             alias: alias || name,
             location,
+            revierweltWebhookUrl,
             imei: type === 'NB-IOT' ? identifier : null,
             deviceId: type === 'LORAWAN' ? identifier : null,
             type,
@@ -113,7 +122,7 @@ router.patch('/:id/status', async (req, res) => {
 // Rename/Update catch (owner only)
 router.patch('/:id', async (req, res) => {
     try {
-        const { name, alias, location } = req.body;
+        const { name, alias, location, revierweltWebhookUrl } = req.body;
         const catchSensor = await CatchSensor.findOne({ where: { id: req.params.id, userId: req.user.id } });
 
         if (!catchSensor) return res.status(404).json({ error: 'Falle nicht gefunden oder kein Zugriff' });
@@ -121,11 +130,15 @@ router.patch('/:id', async (req, res) => {
         if (name) catchSensor.name = name;
         if (alias) catchSensor.alias = alias;
         if (location !== undefined) catchSensor.location = location;
+        if (revierweltWebhookUrl !== undefined) catchSensor.revierweltWebhookUrl = revierweltWebhookUrl;
 
         await catchSensor.save();
 
         if (req.io) {
-            req.io.emit('catchSensorUpdate', catchSensor);
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
+            req.io.emit('catchSensorUpdate', updatedSensor);
         }
 
         res.json(catchSensor);
@@ -184,7 +197,73 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-// Share a catch with another user by email
+// Acknowledge alarm — stops repeat notifications without changing sensor status
+router.post('/:id/acknowledge', async (req, res) => {
+    try {
+        const catchSensor = await CatchSensor.findByPk(req.params.id);
+        if (!catchSensor) return res.status(404).json({ error: 'Melder nicht gefunden' });
+
+        const CatchShare = require('../models/CatchShare');
+        const hasAccess = catchSensor.userId === req.user.id ||
+            await CatchShare.findOne({ where: { catchSensorId: req.params.id, userId: req.user.id } });
+
+        if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+        // Reset both the acknowledgment marker AND the throttle timestamp,
+        // so the next incoming trigger sends a push notification immediately.
+        await catchSensor.update({
+            alarmAcknowledgedAt: new Date(),
+        });
+
+        // Push the updated sensor state to the client immediately via Socket.IO,
+        // so the UI shows 'Quittiert' even if the simulator keeps sending trigger packets.
+        if (catchSensor.userId) {
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
+            req.io.to(`user_${catchSensor.userId}`).emit('catchSensorUpdate', updatedSensor);
+        }
+
+        res.json({ message: 'Alarm quittiert. Nächster Alarm wird sofort gemeldet.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Resync counter (Variant 1) - Resets lastFCnt and clears resyncRequired flag
+router.post('/:id/resync', async (req, res) => {
+    try {
+        const catchSensor = await CatchSensor.findByPk(req.params.id);
+        if (!catchSensor) return res.status(404).json({ error: 'Melder nicht gefunden' });
+
+        const CatchShare = require('../models/CatchShare');
+        const hasAccess = catchSensor.userId === req.user.id ||
+            await CatchShare.findOne({ where: { catchSensorId: req.params.id, userId: req.user.id } });
+
+        if (!hasAccess) return res.status(403).json({ error: 'Kein Zugriff' });
+
+        const { action } = req.body; // 'confirm' or 'reject'
+        const isReject = action === 'reject';
+
+        await catchSensor.update({
+            lastFCnt: isReject ? catchSensor.lastFCnt : -1,
+            resyncRequired: false
+        });
+
+        if (catchSensor.userId) {
+            const updatedSensor = await CatchSensor.findByPk(catchSensor.id, {
+                include: [{ model: LoraMetadata, as: 'lorawanCatchSensor' }]
+            });
+            req.io.to(`user_${catchSensor.userId}`).emit('catchSensorUpdate', updatedSensor);
+        }
+
+        res.json({ message: 'Zähler erfolgreich zurückgesetzt. Gerät ist wieder einsatzbereit.' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
 router.post('/:id/share', async (req, res) => {
     try {
         const { email } = req.body;
@@ -278,24 +357,30 @@ const mqtt = require('mqtt');
 // Simulate MQTT data for a catch
 router.post('/simulate', async (req, res) => {
     try {
-        const { imei, status, batteryVoltage, rssi, jitter = true } = req.body;
+        const { imei, status, batteryVoltage, rssi, jitter = true, payload: customPayload } = req.body;
 
         if (!imei) return res.status(400).json({ error: 'IMEI ist erforderlich' });
 
-        const statusCode = status === 'triggered' ? 0x00 : 0x01;
+        let payload;
+        if (customPayload) {
+            // Use custom hex payload if provided (for testing encrypted packets)
+            payload = Buffer.from(customPayload, 'hex');
+        } else {
+            // Default 4-byte unencrypted payload
+            const statusCode = status === 'triggered' ? 0x00 : 0x01;
+            let voltage = parseInt(batteryVoltage) || 4200;
+            let rssiVal = Math.abs(parseInt(rssi)) || 60;
 
-        let voltage = parseInt(batteryVoltage) || 4200;
-        let rssiVal = Math.abs(parseInt(rssi)) || 60;
+            if (jitter) {
+                voltage += Math.floor(Math.random() * 21) - 10;
+                rssiVal += Math.floor(Math.random() * 5) - 2;
+            }
 
-        if (jitter) {
-            voltage += Math.floor(Math.random() * 21) - 10;
-            rssiVal += Math.floor(Math.random() * 5) - 2;
+            payload = Buffer.alloc(4);
+            payload.writeUInt8(statusCode, 0);
+            payload.writeUInt16BE(voltage, 1);
+            payload.writeUInt8(rssiVal, 3);
         }
-
-        const payload = Buffer.alloc(4);
-        payload.writeUInt8(statusCode, 0);
-        payload.writeUInt16BE(voltage, 1);
-        payload.writeUInt8(rssiVal, 3);
 
         const topic = `catches/${imei}/data`;
 
@@ -312,7 +397,7 @@ router.post('/simulate', async (req, res) => {
             res.json({
                 message: 'Simulation (Direct) gesendet',
                 topic,
-                data: { status, voltage, rssi: -rssiVal },
+                data: customPayload ? { type: 'custom' } : { status, voltage, rssi: -rssi },
                 payload: payload.toString('hex')
             });
         });
@@ -324,4 +409,3 @@ router.post('/simulate', async (req, res) => {
 });
 
 module.exports = router;
-

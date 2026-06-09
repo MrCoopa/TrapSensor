@@ -1,36 +1,18 @@
 const PushSubscription = require('../models/PushSubscription');
-const { sendPushNotification } = require('../services/pushService');
+const { sendNativeNotification } = require('../services/pushService');
+
 const sequelize = require('../config/database');
 
 exports.subscribe = async (req, res) => {
     try {
-        const subscription = req.body;
+        const { endpoint } = req.body;
         const userId = req.user.id;
 
-        if (!subscription || !subscription.endpoint) {
-            return res.status(400).json({ error: 'Invalid subscription object' });
+        if (!endpoint) {
+            return res.status(400).json({ error: 'FCM token (endpoint) required' });
         }
 
-        // Helper to ensure we store keys as an object
-        // (Though Sequelize JSON type should handle it, we want to be safe)
-        let subKeys = subscription.keys;
-        if (typeof subKeys === 'string') {
-            try { subKeys = JSON.parse(subKeys); } catch (e) { }
-        }
-
-        let sub = await PushSubscription.findOne({ where: { endpoint: subscription.endpoint } });
-
-        if (sub) {
-            sub.userId = userId;
-            sub.keys = subKeys;
-            await sub.save();
-        } else {
-            await PushSubscription.create({
-                endpoint: subscription.endpoint,
-                keys: subKeys,
-                userId: userId
-            });
-        }
+        await PushSubscription.upsert({ endpoint, userId });
 
         res.status(201).json({ message: 'Subscription saved.' });
     } catch (error) {
@@ -42,13 +24,11 @@ exports.subscribe = async (req, res) => {
 exports.unsubscribe = async (req, res) => {
     try {
         const { endpoint } = req.body;
-        if (!endpoint) {
-            // If no endpoint provided, we might want to clear all for this user?
-            // But let's be safe and only delete the current one.
-            return res.status(400).json({ error: 'Endpoint required' });
-        }
+        const userId = req.user.id;
+        if (!endpoint) return res.status(400).json({ error: 'Endpoint required' });
 
-        await PushSubscription.destroy({ where: { endpoint } });
+        // Only delete if it belongs to this user
+        await PushSubscription.destroy({ where: { endpoint, userId } });
         res.json({ message: 'Unsubscribed successfully' });
     } catch (error) {
         console.error('Unsubscribe Error:', error);
@@ -74,43 +54,24 @@ exports.testNotification = async (req, res) => {
 
         if (subscriptions.length === 0) {
             return res.status(200).json({
-                message: 'Keine aktiven Browser-Abos gefunden. Bitte Push-Benachrichtigungen erst aktivieren.',
+                message: 'Noch kein Gerät registriert. Bitte öffnen Sie die App einmal auf Ihrem Handy.',
                 count: 0
             });
         }
 
         let sentCount = 0;
         for (const sub of subscriptions) {
-            // Robust parsing for keys that might be double-stringified in DB
-            let currentKeys = sub.keys;
-            let parseAttempts = 0;
-            while (typeof currentKeys === 'string' && parseAttempts < 3) {
-                try {
-                    currentKeys = JSON.parse(currentKeys);
-                } catch (e) {
-                    console.error(`Keys parse error for sub ${sub.id}:`, e.message);
-                    break;
-                }
-                parseAttempts++;
-            }
-
-            // Validate keys
-            if (!currentKeys || typeof currentKeys !== 'object' || !currentKeys.p256dh || !currentKeys.auth) {
-                console.warn(`Test Notification: ⚠️ Invalid keys for sub ${sub.id}. Cleaning up.`);
-                await sub.destroy();
-                continue;
-            }
-
             try {
-                await sendPushNotification(
-                    { name: 'Test-Device', location: 'System', id: 'test' },
-                    { endpoint: sub.endpoint, keys: currentKeys },
-                    'Test-Nachricht',
-                    'Diese Nachricht bestätigt, dass PWA Push-Benachrichtigungen funktionieren. 🦊'
+                console.log(`Test Notification: Sending Native FCM to ${sub.endpoint.substring(0, 15)}...`);
+                await sendNativeNotification(
+                    sub.endpoint,
+                    'CatchSensor: Test-Push',
+                    'Diese Nachricht bestätigt, dass die Benachrichtigungen auf diesem Gerät korrekt konfiguriert sind. 🦊',
+                    { type: 'TEST', url: '/setup' }
                 );
                 sentCount++;
             } catch (err) {
-                console.error(`Test Notification Failed for ${sub.endpoint.substring(0, 20)}...`, err.message);
+                console.error('Test Notification: Native Push failed:', err.message);
             }
         }
 
