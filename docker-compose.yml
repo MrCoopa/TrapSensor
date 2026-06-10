@@ -8,7 +8,7 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
     ports:
-      - "5000:5000"
+      - "443:5000"
       - "1884:1884"
       - "1885:1885"
     environment:
@@ -53,9 +53,6 @@ services:
       catchsensor_db:
         condition: service_healthy
     restart: always
-    networks:
-      - default
-      - npm_shared # Allows Nginx Proxy Manager to reach this container by name
 
   catchsensor_db:
     image: mariadb:latest
@@ -76,9 +73,3 @@ services:
 
 volumes:
   catchsensor_db_data:
-
-
-networks:
-  npm_shared:
-    external: true
-    name: nginx-proxy-manager_default
