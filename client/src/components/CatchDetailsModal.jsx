@@ -31,7 +31,12 @@ const CatchDetailsModal = ({ catchSensor, isOpen, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-50">
-            <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-xl w-full p-8 max-h-[90vh] flex flex-col relative">
+            <div
+                className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl max-w-xl w-full p-8 max-h-[90vh] flex flex-col relative"
+                style={{
+                    paddingBottom: 'calc(32px + var(--safe-area-bottom-offset, 0px))'
+                }}
+            >
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 leading-tight">{catchSensor.name}</h2>

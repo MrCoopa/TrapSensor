@@ -15,6 +15,21 @@ function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); // 'login', 'register', 'dashboard', 'setup'
 
+  // ── Android 15+ Safe Area / Edge-to-Edge Detection ──────────────────────────
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const ua = navigator.userAgent;
+      const match = ua.match(/Android\s+([0-9]+)/);
+      if (match) {
+        const version = parseInt(match[1], 10);
+        if (version >= 15) {
+          document.documentElement.style.setProperty('--safe-area-bottom-offset', 'env(safe-area-inset-bottom, 24px)');
+          document.documentElement.classList.add('android-15');
+        }
+      }
+    }
+  }, []);
+
   // ── Android Back Button Support ─────────────────────────────────────────────
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -172,7 +187,12 @@ function App() {
       </main>
 
       {/* Bottom Navigation matching template */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-3 z-40">
+      <nav
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 pt-3 pb-3 z-40"
+        style={{
+          paddingBottom: 'calc(12px + var(--safe-area-bottom-offset, 0px))'
+        }}
+      >
         <div className="max-w-2xl mx-auto flex justify-between items-center text-gray-400">
           <button
             onClick={() => setView('dashboard')}

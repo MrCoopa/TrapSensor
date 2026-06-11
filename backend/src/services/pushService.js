@@ -24,9 +24,6 @@ try {
     }
 
     if (serviceAccount) {
-        if (serviceAccount.private_key) {
-            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
-        }
         admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
         console.log('Push Service: Firebase Admin SDK initialized successfully. ✅');
         firebaseInitialized = true;

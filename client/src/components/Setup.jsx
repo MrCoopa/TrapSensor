@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2 } from 'lucide-react';
+import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2, Globe } from 'lucide-react';
 import EditCatchModal from './EditCatchModal';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -35,9 +35,34 @@ const Setup = ({ onLogout }) => {
     const [showIntegrations, setShowIntegrations] = useState(false);
     const [notifPermission, setNotifPermission] = useState('default');
     const [showDebug, setShowDebug] = useState(false);
+    const [tempApiUrl, setTempApiUrl] = useState(() => localStorage.getItem('api_custom_url') || API_BASE);
 
 
     const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+    const handleSaveApiUrl = () => {
+        if (!tempApiUrl.trim()) {
+            localStorage.removeItem('api_custom_url');
+        } else {
+            let cleanUrl = tempApiUrl.trim();
+            if (cleanUrl.endsWith('/')) {
+                cleanUrl = cleanUrl.slice(0, -1);
+            }
+            localStorage.setItem('api_custom_url', cleanUrl);
+        }
+        setStatusMessage({ text: 'Server-Adresse geändert! App wird neu geladen... 🔄', type: 'success' });
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    };
+
+    const handleResetApiUrl = () => {
+        localStorage.removeItem('api_custom_url');
+        setStatusMessage({ text: 'Server-Adresse zurückgesetzt! App wird neu geladen... 🔄', type: 'success' });
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+    };
 
     const testConnection = async () => {
         setStatusMessage({ text: 'Teste Verbindung...', type: '' });
@@ -478,7 +503,12 @@ const Setup = ({ onLogout }) => {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col pb-24">
+        <div
+            className="min-h-screen bg-gray-50 flex flex-col"
+            style={{
+                paddingBottom: 'calc(96px + var(--safe-area-bottom-offset, 0px))'
+            }}
+        >
             {/* Header matching template */}
             <header className="bg-[#1b3a2e] text-white pt-12 pb-4 px-6 sticky top-0 z-30 shadow-md">
                 <div className="flex items-center justify-between max-w-2xl mx-auto">
@@ -798,6 +828,9 @@ const Setup = ({ onLogout }) => {
                             <div
                                 className="bg-white w-full max-w-lg rounded-[2rem] p-6 shadow-2xl max-h-[85vh] overflow-y-auto"
                                 onClick={(e) => e.stopPropagation()}
+                                style={{
+                                    paddingBottom: 'calc(24px + var(--safe-area-bottom-offset, 0px))'
+                                }}
                             >
                                 <div className="flex justify-between items-center mb-6">
                                     <div>
@@ -941,6 +974,44 @@ const Setup = ({ onLogout }) => {
 
                         {showDebug && (
                             <div className="border-t border-gray-50 divide-y divide-gray-50">
+                                {/* Server API URL Config */}
+                                <div className="p-4 flex flex-col space-y-3 bg-gray-50/50">
+                                    <div className="flex items-center space-x-4">
+                                        <div className="bg-blue-50 p-2.5 rounded-2xl text-blue-600">
+                                            <Globe size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">Server-Adresse (Backend)</p>
+                                            <p className="text-[10px] text-gray-400 font-medium break-all">
+                                                Aktuell: {API_BASE || 'Relatives Root-Verzeichnis'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={tempApiUrl}
+                                            onChange={(e) => setTempApiUrl(e.target.value)}
+                                            placeholder="z.B. http://192.168.178.50:3000"
+                                            className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors"
+                                        />
+                                        <button
+                                            onClick={handleSaveApiUrl}
+                                            className="px-4 py-2 bg-black text-white text-xs font-black rounded-xl hover:bg-gray-800 transition-all active:scale-95 cursor-pointer"
+                                        >
+                                            Speichern
+                                        </button>
+                                        {localStorage.getItem('api_custom_url') && (
+                                            <button
+                                                onClick={handleResetApiUrl}
+                                                className="px-3 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-xl hover:bg-red-100 border border-red-100 transition-all active:scale-95 cursor-pointer"
+                                            >
+                                                Reset
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className="p-4 flex items-center justify-between">
                                     <div className="flex items-center space-x-4">
                                         <div className={`p-2.5 rounded-2xl ${notifPermission === 'granted' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>

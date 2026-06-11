@@ -357,7 +357,12 @@ const Dashboard = ({ onLogout }) => {
                 </div>
             )}
 
-            <main className={`flex-1 max-w-2xl w-full mx-auto px-4 py-6 mb-24 transition-opacity duration-300 ${connectionStatus === 'disconnected' ? 'pointer-events-none opacity-60' : ''}`}>
+            <main
+                className={`flex-1 max-w-2xl w-full mx-auto px-4 py-6 transition-opacity duration-300 ${connectionStatus === 'disconnected' ? 'pointer-events-none opacity-60' : ''}`}
+                style={{
+                    marginBottom: 'calc(96px + var(--safe-area-bottom-offset, 0px))'
+                }}
+            >
                 {catches.length === 0 ? (
                     <div className="bg-white rounded-2xl p-12 text-center border-2 border-dashed border-gray-200 shadow-sm">
                         <p className="text-gray-500 font-medium">Noch keine Melder. Klicken Sie auf "+ Neu".</p>
