@@ -166,9 +166,10 @@ const Dashboard = ({ onLogout }) => {
             auth: {
                 token: token
             },
+            transports: ['websocket', 'polling'],
             reconnectionAttempts: 10,
-            reconnectionDelay: 2000,
-            timeout: 10000
+            reconnectionDelay: 1000,
+            timeout: 3000
         });
         socketRef.current = socket;
 
