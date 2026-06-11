@@ -162,8 +162,6 @@ const setupWatchdog = (io) => {
             const todayDateStr = `${partValues.year}-${partValues.month}-${partValues.day}`;
             const currentTimeString = `${partValues.hour}:${partValues.minute}`;
 
-            console.log(`DailyStatus Cron: Checking at ${currentTimeString} (Berlin Time) / Date: ${todayDateStr}`);
-
             // Find users who have daily status enabled, match the current time, and haven't received it today
             const users = await User.findAll({
                 where: {
