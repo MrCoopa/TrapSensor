@@ -144,15 +144,23 @@ const setupWatchdog = (io) => {
     // ── Daily status report: check every minute ─────────────────────────────
     cron.schedule('* * * * *', async () => {
         try {
-            const todayLocal = new Date();
-            const year = todayLocal.getFullYear();
-            const month = String(todayLocal.getMonth() + 1).padStart(2, '0');
-            const day = String(todayLocal.getDate()).padStart(2, '0');
-            const todayDateStr = `${year}-${month}-${day}`;
-
-            const hours = String(todayLocal.getHours()).padStart(2, '0');
-            const minutes = String(todayLocal.getMinutes()).padStart(2, '0');
-            const currentTimeString = `${hours}:${minutes}`;
+            // Force Europe/Berlin timezone for checking the time and date
+            const formatter = new Intl.DateTimeFormat('en-US', {
+                timeZone: 'Europe/Berlin',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23'
+            });
+            const parts = formatter.formatToParts(new Date());
+            const partValues = {};
+            for (const part of parts) {
+                partValues[part.type] = part.value;
+            }
+            const todayDateStr = `${partValues.year}-${partValues.month}-${partValues.day}`;
+            const currentTimeString = `${partValues.hour}:${partValues.minute}`;
 
             // Find users who have daily status enabled, match the current time, and haven't received it today
             const users = await User.findAll({
