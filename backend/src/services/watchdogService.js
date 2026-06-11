@@ -38,7 +38,7 @@ const setupWatchdog = (io) => {
             });
             const sharedUserIds = shares.map(share => share.userId);
             const allUserIds = [...new Set([...ownerIds, ...sharedUserIds])];
-            
+
             const users = await User.findAll({ where: { id: { [Op.in]: allUserIds } } });
             const userMap = {};
             for (const u of users) userMap[u.id] = u;
@@ -161,6 +161,8 @@ const setupWatchdog = (io) => {
             }
             const todayDateStr = `${partValues.year}-${partValues.month}-${partValues.day}`;
             const currentTimeString = `${partValues.hour}:${partValues.minute}`;
+
+            console.log(`DailyStatus Cron: Checking at ${currentTimeString} (Berlin Time) / Date: ${todayDateStr}`);
 
             // Find users who have daily status enabled, match the current time, and haven't received it today
             const users = await User.findAll({
