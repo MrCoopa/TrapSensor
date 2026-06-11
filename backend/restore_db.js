@@ -28,7 +28,10 @@ const User = sequelize.define('User', {
     batteryThreshold: { type: DataTypes.INTEGER, defaultValue: 15 },
     batteryAlertInterval: { type: DataTypes.INTEGER, defaultValue: 8 },
     offlineAlertInterval: { type: DataTypes.INTEGER, defaultValue: 8 },
-    catchAlertInterval: { type: DataTypes.INTEGER, defaultValue: 3 }
+    catchAlertInterval: { type: DataTypes.INTEGER, defaultValue: 3 },
+    dailyStatusEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+    dailyStatusTime: { type: DataTypes.STRING, defaultValue: '08:00' },
+    lastDailyStatusSent: { type: DataTypes.DATEONLY, allowNull: true }
 }, { tableName: 'Users' });
 
 async function restore() {

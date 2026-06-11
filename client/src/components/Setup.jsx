@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2, Globe } from 'lucide-react';
+import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2, Globe, Clock } from 'lucide-react';
 import EditCatchModal from './EditCatchModal';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
@@ -31,6 +31,8 @@ const Setup = ({ onLogout }) => {
     const [showPushover, setShowPushover] = useState(false);
     const [pushoverEnabled, setPushoverEnabled] = useState(false);
     const [revierweltEnabled, setRevierweltEnabled] = useState(false);
+    const [dailyStatusEnabled, setDailyStatusEnabled] = useState(false);
+    const [dailyStatusTime, setDailyStatusTime] = useState('08:00');
     const [showRevierwelt, setShowRevierwelt] = useState(false);
     const [showIntegrations, setShowIntegrations] = useState(false);
     const [notifPermission, setNotifPermission] = useState('default');
@@ -183,6 +185,8 @@ const Setup = ({ onLogout }) => {
                 setCatchAlertInterval(userData.catchAlertInterval || 1);
                 setPushoverEnabled(userData.pushoverEnabled || false);
                 setRevierweltEnabled(userData.revierweltEnabled || false);
+                setDailyStatusEnabled(userData.dailyStatusEnabled || false);
+                setDailyStatusTime(userData.dailyStatusTime || '08:00');
                 if (userData.pushEnabled !== undefined) { /* ignore, always enabled now */ }
 
 
@@ -241,6 +245,8 @@ const Setup = ({ onLogout }) => {
                     catchAlertInterval,
                     pushoverEnabled,
                     revierweltEnabled,
+                    dailyStatusEnabled,
+                    dailyStatusTime,
                     ...overrides
                 })
             });
@@ -541,6 +547,48 @@ const Setup = ({ onLogout }) => {
                                     <p className="text-[10px] text-gray-400 font-medium">Automatisch aktiv auf diesem Mobilgerät</p>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Daily Status Report */}
+                        <div className="p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-2.5 rounded-2xl bg-[#1b3a2e]/10 text-[#1b3a2e]">
+                                        <Clock size={20} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-bold text-gray-900">Tägliche Statusauskunft</p>
+                                        <p className="text-[10px] text-gray-400 font-medium font-bold">Status der Melder einmal täglich senden</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-2 px-2">
+                                    <div
+                                        onClick={() => {
+                                            const newVal = !dailyStatusEnabled;
+                                            setDailyStatusEnabled(newVal);
+                                            setTimeout(() => handleUpdateProfileWithVal({ dailyStatusEnabled: newVal }), 0);
+                                        }}
+                                        className={`w-10 h-5 rounded-full relative transition-colors cursor-pointer ${dailyStatusEnabled ? 'bg-[#1b3a2e]' : 'bg-gray-200'}`}
+                                    >
+                                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${dailyStatusEnabled ? 'left-6' : 'left-1'}`} />
+                                    </div>
+                                </div>
+                            </div>
+                            {dailyStatusEnabled && (
+                                <div className="flex items-center justify-between bg-gray-50/50 p-3 rounded-2xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <span className="text-xs font-bold text-gray-600">Sendezeitpunkt:</span>
+                                    <input
+                                        type="time"
+                                        value={dailyStatusTime}
+                                        onChange={(e) => {
+                                            const newTime = e.target.value;
+                                            setDailyStatusTime(newTime);
+                                            handleUpdateProfileWithVal({ dailyStatusTime: newTime });
+                                        }}
+                                        className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors"
+                                    />
+                                </div>
+                            )}
                         </div>
 
 

@@ -140,6 +140,107 @@ const setupWatchdog = (io) => {
             console.error('Watchdog Error:', err);
         }
     });
+
+    // ── Daily status report: check every minute ─────────────────────────────
+    cron.schedule('* * * * *', async () => {
+        try {
+            const todayLocal = new Date();
+            const year = todayLocal.getFullYear();
+            const month = String(todayLocal.getMonth() + 1).padStart(2, '0');
+            const day = String(todayLocal.getDate()).padStart(2, '0');
+            const todayDateStr = `${year}-${month}-${day}`;
+
+            const hours = String(todayLocal.getHours()).padStart(2, '0');
+            const minutes = String(todayLocal.getMinutes()).padStart(2, '0');
+            const currentTimeString = `${hours}:${minutes}`;
+
+            // Find users who have daily status enabled, match the current time, and haven't received it today
+            const users = await User.findAll({
+                where: {
+                    dailyStatusEnabled: true,
+                    dailyStatusTime: currentTimeString,
+                    [Op.or]: [
+                        { lastDailyStatusSent: null },
+                        { lastDailyStatusSent: { [Op.ne]: todayDateStr } }
+                    ]
+                }
+            });
+
+            for (const user of users) {
+                const sensors = await CatchSensor.findAll({
+                    where: { userId: user.id }
+                });
+
+                if (sensors.length === 0) {
+                    continue;
+                }
+
+                let activeCount = 0;
+                let triggeredCount = 0;
+                let inactiveCount = 0;
+
+                for (const sensor of sensors) {
+                    if (sensor.status === 'triggered') {
+                        triggeredCount++;
+                    } else if (sensor.status === 'inactive') {
+                        inactiveCount++;
+                    } else {
+                        activeCount++;
+                    }
+                }
+
+                let messageText = '';
+                if (triggeredCount === 0 && inactiveCount === 0) {
+                    messageText = 'Fallenstatus: Alle Melder online.';
+                } else {
+                    const statusParts = [];
+                    if (activeCount > 0) statusParts.push(`${activeCount} online`);
+                    if (triggeredCount > 0) statusParts.push(`${triggeredCount}  ausgelöst`);
+                    if (inactiveCount > 0) statusParts.push(`${inactiveCount} offline`);
+                    messageText = `Fallenstatus: ${statusParts.join(', ')}.`;
+                }
+
+                console.log(`DailyStatus: Sending report to user ${user.email} at ${currentTimeString}: "${messageText}"`);
+
+                // Send Native Push (FCM)
+                const PushSubscription = require('../models/PushSubscription');
+                const { sendNativeNotification } = require('./pushService');
+                const subscriptions = await PushSubscription.findAll({ where: { userId: user.id } });
+
+                for (const sub of subscriptions) {
+                    try {
+                        await sendNativeNotification(sub.endpoint, "Tägliche Statusauskunft", messageText, {
+                            type: 'DAILY_STATUS'
+                        });
+                    } catch (err) {
+                        console.error(`DailyStatus: Failed to send FCM to sub ${sub.id}:`, err.message);
+                    }
+                }
+
+                // Send Pushover if enabled
+                if (user.pushoverEnabled && user.pushoverAppKey && user.pushoverUserKey) {
+                    try {
+                        const PushoverClass = require('pushover-notifications');
+                        const push = new PushoverClass({ user: user.pushoverUserKey, token: user.pushoverAppKey });
+                        push.send({
+                            title: "Tägliche Statusauskunft",
+                            message: messageText,
+                            priority: 0
+                        }, (err, result) => {
+                            if (err) console.error('DailyStatus: Pushover failed:', err);
+                        });
+                    } catch (err) {
+                        console.error('DailyStatus: Error sending Pushover:', err.message);
+                    }
+                }
+
+                // Mark as sent today
+                await user.update({ lastDailyStatusSent: todayDateStr });
+            }
+        } catch (err) {
+            console.error('DailyStatus Cron Error:', err);
+        }
+    });
 };
 
 module.exports = { setupWatchdog };

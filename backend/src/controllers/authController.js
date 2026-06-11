@@ -119,7 +119,9 @@ const updateProfile = async (req, res) => {
             offlineAlertInterval,
             catchAlertInterval,
             pushoverEnabled,
-            revierweltEnabled
+            revierweltEnabled,
+            dailyStatusEnabled,
+            dailyStatusTime
         } = req.body;
         const user = await User.findByPk(req.user.id);
         if (!user) return res.status(404).json({ message: 'User not found' });
@@ -133,6 +135,8 @@ const updateProfile = async (req, res) => {
         if (catchAlertInterval !== undefined) user.catchAlertInterval = catchAlertInterval;
         if (pushoverEnabled !== undefined) user.pushoverEnabled = pushoverEnabled;
         if (revierweltEnabled !== undefined) user.revierweltEnabled = revierweltEnabled;
+        if (dailyStatusEnabled !== undefined) user.dailyStatusEnabled = dailyStatusEnabled;
+        if (dailyStatusTime !== undefined) user.dailyStatusTime = dailyStatusTime;
 
         await user.save();
         res.json({
@@ -149,7 +153,9 @@ const updateProfile = async (req, res) => {
                 offlineAlertInterval: user.offlineAlertInterval,
                 catchAlertInterval: user.catchAlertInterval,
                 pushoverEnabled: user.pushoverEnabled,
-                revierweltEnabled: user.revierweltEnabled
+                revierweltEnabled: user.revierweltEnabled,
+                dailyStatusEnabled: user.dailyStatusEnabled,
+                dailyStatusTime: user.dailyStatusTime
             }
         });
     } catch (error) {

@@ -66,6 +66,18 @@ const User = sequelize.define('User', {
     catchAlertInterval: {
         type: DataTypes.INTEGER,
         defaultValue: 3, // hours between triggered (catch) re-alerts
+    },
+    dailyStatusEnabled: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+    },
+    dailyStatusTime: {
+        type: DataTypes.STRING,
+        defaultValue: '08:00',
+    },
+    lastDailyStatusSent: {
+        type: DataTypes.DATEONLY,
+        allowNull: true,
     }
 }, {
     indexes: [
