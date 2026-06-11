@@ -17,20 +17,7 @@ function App() {
   const [view, setView] = useState('login'); // 'login', 'register', 'dashboard', 'setup'
   const [isDebugOpen, setIsDebugOpen] = useState(false);
 
-  // ── Android 15+ Safe Area / Edge-to-Edge Detection ──────────────────────────
-  useEffect(() => {
-    if (Capacitor.isNativePlatform()) {
-      const ua = navigator.userAgent;
-      const match = ua.match(/Android\s+([0-9]+)/);
-      if (match) {
-        const version = parseInt(match[1], 10);
-        if (version >= 15) {
-          document.documentElement.style.setProperty('--safe-area-bottom-offset', 'env(safe-area-inset-bottom, 24px)');
-          document.documentElement.classList.add('android-15');
-        }
-      }
-    }
-  }, []);
+
 
   // ── Android Back Button Support ─────────────────────────────────────────────
   useEffect(() => {
