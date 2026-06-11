@@ -163,91 +163,6 @@ const updateProfile = async (req, res) => {
     }
 };
 
-const testDailyStatus = async (req, res) => {
-    try {
-        const user = await User.findByPk(req.user.id);
-        if (!user) return res.status(404).json({ message: 'User not found' });
-
-        const CatchSensor = require('../models/CatchSensor');
-        const sensors = await CatchSensor.findAll({
-            where: { userId: user.id }
-        });
-
-        if (sensors.length === 0) {
-            return res.status(400).json({ message: 'Keine Melder registriert.' });
-        }
-
-        let activeCount = 0;
-        let triggeredCount = 0;
-        let inactiveCount = 0;
-
-        for (const sensor of sensors) {
-            if (sensor.status === 'triggered') {
-                triggeredCount++;
-            } else if (sensor.status === 'inactive') {
-                inactiveCount++;
-            } else {
-                activeCount++;
-            }
-        }
-
-        let messageText = '';
-        if (triggeredCount === 0 && inactiveCount === 0) {
-            messageText = 'Alle Melder online.';
-        } else {
-            const statusParts = [];
-            if (activeCount > 0) statusParts.push(`${activeCount} online`);
-            if (triggeredCount > 0) statusParts.push(`${triggeredCount} ausgelöst`);
-            if (inactiveCount > 0) statusParts.push(`${inactiveCount} offline`);
-            messageText = `${statusParts.join(', ')}.`;
-        }
-
-        // Send Native Push (FCM)
-        const PushSubscription = require('../models/PushSubscription');
-        const { sendNativeNotification } = require('../services/pushService');
-        const subscriptions = await PushSubscription.findAll({ where: { userId: user.id } });
-
-        let fcmSentCount = 0;
-        for (const sub of subscriptions) {
-            try {
-                await sendNativeNotification(sub.endpoint, "Tägliche Statusauskunft", messageText, {
-                    type: 'DAILY_STATUS'
-                });
-                fcmSentCount++;
-            } catch (err) {
-                console.error(`DailyStatus Test: Failed to send FCM to sub ${sub.id}:`, err.message);
-            }
-        }
-
-        // Send Pushover if enabled
-        let pushoverSent = false;
-        if (user.pushoverEnabled && user.pushoverAppKey && user.pushoverUserKey) {
-            try {
-                const PushoverClass = require('pushover-notifications');
-                const push = new PushoverClass({ user: user.pushoverUserKey, token: user.pushoverAppKey });
-                push.send({
-                    title: "Tägliche Statusauskunft",
-                    message: messageText,
-                    priority: 0
-                }, (err, result) => {
-                    if (err) console.error('DailyStatus Test: Pushover failed:', err);
-                });
-                pushoverSent = true;
-            } catch (err) {
-                console.error('DailyStatus Test: Error sending Pushover:', err.message);
-            }
-        }
-
-        res.json({
-            message: 'Testbericht gesendet.',
-            text: messageText,
-            fcmSentCount,
-            pushoverSent
-        });
-    } catch (error) {
-        res.status(500).json({ message: error.message });
-    }
-};
 
 
 module.exports = {
@@ -257,7 +172,6 @@ module.exports = {
     changePassword,
     updateProfile,
     refreshToken,
-    testDailyStatus,
 };
 
 

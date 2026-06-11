@@ -33,7 +33,7 @@ const Setup = ({ onLogout }) => {
     const [revierweltEnabled, setRevierweltEnabled] = useState(false);
     const [dailyStatusEnabled, setDailyStatusEnabled] = useState(false);
     const [dailyStatusTime, setDailyStatusTime] = useState('08:00');
-    const [isTestingDailyStatus, setIsTestingDailyStatus] = useState(false);
+
     const [showRevierwelt, setShowRevierwelt] = useState(false);
     const [showIntegrations, setShowIntegrations] = useState(false);
     const [notifPermission, setNotifPermission] = useState('default');
@@ -261,37 +261,6 @@ const Setup = ({ onLogout }) => {
             console.error('Update profile error:', error);
         } finally {
             setIsSavingProfile(false);
-        }
-    };
-
-    const handleTestDailyStatus = async () => {
-        setIsTestingDailyStatus(true);
-        setStatusMessage({ text: '', type: '' });
-        try {
-            const token = localStorage.getItem('token');
-            const res = await fetch(`${API_BASE}/api/auth/test-daily-status`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await res.json();
-            if (res.ok) {
-                setStatusMessage({ 
-                    text: `Test-Statusbericht erfolgreich gesendet! 🚀 (${data.text})`, 
-                    type: 'success' 
-                });
-            } else {
-                setStatusMessage({ 
-                    text: `Fehler: ${data.message || 'Konnte Bericht nicht senden.'}`, 
-                    type: 'error' 
-                });
-            }
-        } catch (error) {
-            console.error('Test daily status error:', error);
-            setStatusMessage({ text: 'Verbindungsfehler zum Server.', type: 'error' });
-        } finally {
-            setIsTestingDailyStatus(false);
-            // Clear message after 5 seconds
-            setTimeout(() => setStatusMessage({ text: '', type: '' }), 5000);
         }
     };
 
@@ -607,51 +576,42 @@ const Setup = ({ onLogout }) => {
                                 </div>
                             </div>
                             {dailyStatusEnabled && (
-                                <div className="space-y-3 bg-gray-50/50 p-3 rounded-2xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-gray-600">Sendezeitpunkt:</span>
-                                        <div className="flex items-center space-x-1">
-                                            <select
-                                                value={dailyStatusTime.split(':')[0] || '08'}
-                                                onChange={(e) => {
-                                                    const newHour = e.target.value;
-                                                    const newMin = dailyStatusTime.split(':')[1] || '00';
-                                                    const newTime = `${newHour}:${newMin}`;
-                                                    setDailyStatusTime(newTime);
-                                                    handleUpdateProfileWithVal({ dailyStatusTime: newTime });
-                                                }}
-                                                className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
-                                            >
-                                                {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
-                                                    <option key={h} value={h}>{h}</option>
-                                                ))}
-                                            </select>
-                                            <span className="text-sm font-bold text-gray-500">:</span>
-                                            <select
-                                                value={dailyStatusTime.split(':')[1] || '00'}
-                                                onChange={(e) => {
-                                                    const newHour = dailyStatusTime.split(':')[0] || '08';
-                                                    const newMin = e.target.value;
-                                                    const newTime = `${newHour}:${newMin}`;
-                                                    setDailyStatusTime(newTime);
-                                                    handleUpdateProfileWithVal({ dailyStatusTime: newTime });
-                                                }}
-                                                className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
-                                            >
-                                                {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => (
-                                                    <option key={m} value={m}>{m}</option>
-                                                ))}
-                                            </select>
-                                            <span className="text-xs font-bold text-gray-500 pl-1">Uhr</span>
-                                        </div>
+                                <div className="flex items-center justify-between bg-gray-50/50 p-3 rounded-2xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
+                                    <span className="text-xs font-bold text-gray-600">Sendezeitpunkt:</span>
+                                    <div className="flex items-center space-x-1">
+                                        <select
+                                            value={dailyStatusTime.split(':')[0] || '08'}
+                                            onChange={(e) => {
+                                                const newHour = e.target.value;
+                                                const newMin = dailyStatusTime.split(':')[1] || '00';
+                                                const newTime = `${newHour}:${newMin}`;
+                                                setDailyStatusTime(newTime);
+                                                handleUpdateProfileWithVal({ dailyStatusTime: newTime });
+                                            }}
+                                            className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
+                                        >
+                                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+                                        <span className="text-sm font-bold text-gray-500">:</span>
+                                        <select
+                                            value={dailyStatusTime.split(':')[1] || '00'}
+                                            onChange={(e) => {
+                                                const newHour = dailyStatusTime.split(':')[0] || '08';
+                                                const newMin = e.target.value;
+                                                const newTime = `${newHour}:${newMin}`;
+                                                setDailyStatusTime(newTime);
+                                                handleUpdateProfileWithVal({ dailyStatusTime: newTime });
+                                            }}
+                                            className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
+                                        >
+                                            {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <span className="text-xs font-bold text-gray-500 pl-1">Uhr</span>
                                     </div>
-                                    <button
-                                        onClick={handleTestDailyStatus}
-                                        disabled={isTestingDailyStatus}
-                                        className="w-full py-2.5 bg-black text-white text-[10px] font-black rounded-xl hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-50"
-                                    >
-                                        {isTestingDailyStatus ? 'Sende Testbericht...' : 'Testbericht jetzt senden 🚀'}
-                                    </button>
                                 </div>
                             )}
                         </div>
