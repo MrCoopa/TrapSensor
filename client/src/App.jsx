@@ -3,6 +3,7 @@ import Dashboard from './components/Dashboard';
 import Setup from './components/Setup';
 import Login from './components/Login';
 import Register from './components/Register';
+import DebugModal from './components/DebugModal';
 import { Home, Plus, Settings } from 'lucide-react';
 
 import { Capacitor } from '@capacitor/core';
@@ -14,6 +15,7 @@ import { App as CapApp } from '@capacitor/app';
 function App() {
   const [user, setUser] = useState(null);
   const [view, setView] = useState('login'); // 'login', 'register', 'dashboard', 'setup'
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
 
   // ── Android 15+ Safe Area / Edge-to-Edge Detection ──────────────────────────
   useEffect(() => {
@@ -173,8 +175,26 @@ function App() {
     setView('login');
   };
 
-  if (view === 'login') return <Login onLogin={handleLogin} onSwitchToRegister={() => setView('register')} />;
-  if (view === 'register') return <Register onRegister={handleRegister} onSwitchToLogin={() => setView('login')} />;
+  if (view === 'login') return (
+    <>
+      <Login
+        onLogin={handleLogin}
+        onSwitchToRegister={() => setView('register')}
+        onOpenDebug={() => setIsDebugOpen(true)}
+      />
+      <DebugModal isOpen={isDebugOpen} onClose={() => setIsDebugOpen(false)} />
+    </>
+  );
+  if (view === 'register') return (
+    <>
+      <Register
+        onRegister={handleRegister}
+        onSwitchToLogin={() => setView('login')}
+        onOpenDebug={() => setIsDebugOpen(true)}
+      />
+      <DebugModal isOpen={isDebugOpen} onClose={() => setIsDebugOpen(false)} />
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col font-sans">

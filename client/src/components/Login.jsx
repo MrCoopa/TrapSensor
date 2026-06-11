@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Settings } from 'lucide-react';
 import API_BASE from '../apiConfig';
 
-const Login = ({ onLogin, onSwitchToRegister }) => {
+const Login = ({ onLogin, onSwitchToRegister, onOpenDebug }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -91,13 +91,22 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
                     </button>
                 </form>
 
-                <div className="mt-8 text-center">
+                <div className="mt-8 flex items-center justify-between px-1">
+                    <button
+                        type="button"
+                        onClick={onOpenDebug}
+                        className="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-all active:scale-95 cursor-pointer"
+                        title="Entwickleroptionen & Debug"
+                    >
+                        <Settings size={20} />
+                    </button>
                     <button
                         onClick={onSwitchToRegister}
                         className="text-gray-400 text-sm font-bold hover:text-green-700 transition-colors"
                     >
                         Noch kein Konto? <span className="text-green-700 underline decoration-2 underline-offset-4">Registrieren</span>
                     </button>
+                    <div className="w-9" />
                 </div>
             </div>
         </div>
