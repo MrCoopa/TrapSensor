@@ -339,24 +339,6 @@ const Dashboard = ({ onLogout }) => {
                 </div>
             </header>
 
-            {/* ── Offline Banner ─────────────────────────────────────────────────── */}
-            {connectionStatus === 'disconnected' && (
-                <div className="sticky top-0 z-20 bg-red-600 text-white text-center py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 shadow-md">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
-                    </svg>
-                    <span>Verbindung unterbrochen – Änderungen werden nicht gespeichert</span>
-                </div>
-            )}
-            {connectionStatus === 'connecting' && (
-                <div className="sticky top-0 z-20 bg-amber-500 text-white text-center py-2 px-4 text-xs font-bold flex items-center justify-center gap-2">
-                    <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-                    </svg>
-                    <span>Verbinde mit Server...</span>
-                </div>
-            )}
-
             <main
                 className={`flex-1 max-w-2xl w-full mx-auto px-4 py-6 transition-opacity duration-300 ${connectionStatus === 'disconnected' ? 'pointer-events-none opacity-60' : ''}`}
                 style={{
