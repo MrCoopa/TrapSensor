@@ -12,6 +12,7 @@ services:
       - "1884:1884"
       - "1885:1885"
     environment:
+      - TZ=Europe/Berlin
       - PORT=5000
       - DB_HOST=catchsensor_db
       - DB_USER=root
@@ -60,6 +61,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: ${DB_NAME:-catchsensor}
+      TZ: Europe/Berlin
     ports:
       - "3306:3306"
     volumes:
