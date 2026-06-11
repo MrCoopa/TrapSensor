@@ -577,16 +577,40 @@ const Setup = ({ onLogout }) => {
                             {dailyStatusEnabled && (
                                 <div className="flex items-center justify-between bg-gray-50/50 p-3 rounded-2xl border border-gray-100 animate-in fade-in slide-in-from-top-1 duration-200">
                                     <span className="text-xs font-bold text-gray-600">Sendezeitpunkt:</span>
-                                    <input
-                                        type="time"
-                                        value={dailyStatusTime}
-                                        onChange={(e) => {
-                                            const newTime = e.target.value;
-                                            setDailyStatusTime(newTime);
-                                            handleUpdateProfileWithVal({ dailyStatusTime: newTime });
-                                        }}
-                                        className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors"
-                                    />
+                                    <div className="flex items-center space-x-1">
+                                        <select
+                                            value={dailyStatusTime.split(':')[0] || '08'}
+                                            onChange={(e) => {
+                                                const newHour = e.target.value;
+                                                const newMin = dailyStatusTime.split(':')[1] || '00';
+                                                const newTime = `${newHour}:${newMin}`;
+                                                setDailyStatusTime(newTime);
+                                                handleUpdateProfileWithVal({ dailyStatusTime: newTime });
+                                            }}
+                                            className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
+                                        >
+                                            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map(h => (
+                                                <option key={h} value={h}>{h}</option>
+                                            ))}
+                                        </select>
+                                        <span className="text-sm font-bold text-gray-500">:</span>
+                                        <select
+                                            value={dailyStatusTime.split(':')[1] || '00'}
+                                            onChange={(e) => {
+                                                const newHour = dailyStatusTime.split(':')[0] || '08';
+                                                const newMin = e.target.value;
+                                                const newTime = `${newHour}:${newMin}`;
+                                                setDailyStatusTime(newTime);
+                                                handleUpdateProfileWithVal({ dailyStatusTime: newTime });
+                                            }}
+                                            className="bg-white border border-gray-200 rounded-xl px-2.5 py-1.5 text-sm font-bold text-[#1b3a2e] focus:outline-none focus:border-[#1b3a2e] transition-colors cursor-pointer"
+                                        >
+                                            {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(m => (
+                                                <option key={m} value={m}>{m}</option>
+                                            ))}
+                                        </select>
+                                        <span className="text-xs font-bold text-gray-500 pl-1">Uhr</span>
+                                    </div>
                                 </div>
                             )}
                         </div>
