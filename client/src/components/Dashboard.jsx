@@ -293,8 +293,8 @@ const Dashboard = ({ onLogout }) => {
 
     const handleResync = (catchId, action) => {
         setCatches(prev => prev.map(c =>
-            c.id === catchId 
-                ? { ...c, resyncRequired: false, lastFCnt: action === 'reject' ? c.lastFCnt : -1 } 
+            c.id === catchId
+                ? { ...c, resyncRequired: false, lastFCnt: action === 'reject' ? c.lastFCnt : -1 }
                 : c
         ));
     };

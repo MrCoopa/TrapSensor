@@ -200,24 +200,13 @@ function App() {
           paddingBottom: 'calc(12px + var(--safe-area-bottom-offset, 0px))'
         }}
       >
-        <div className="max-w-2xl mx-auto flex justify-between items-center text-gray-400">
+        <div className="max-w-2xl mx-auto flex justify-around items-center text-gray-400">
           <button
             onClick={() => setView('dashboard')}
             className={`flex flex-col items-center space-y-1 transition-colors ${view === 'dashboard' ? 'text-green-700' : 'hover:text-green-700'}`}
           >
             <Home size={24} />
             <span className="text-[10px] font-bold uppercase tracking-widest">Melder</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (view !== 'dashboard') setView('dashboard');
-              setTimeout(() => window.dispatchEvent(new CustomEvent('open-add-catch-sensor')), 100);
-            }}
-            className="flex flex-col items-center space-y-1 hover:text-green-700 transition-colors"
-          >
-            <Plus size={24} />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Neu</span>
           </button>
 
           <button

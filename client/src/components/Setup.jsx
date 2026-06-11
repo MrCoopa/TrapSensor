@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2, Globe, Clock } from 'lucide-react';
+import { User, Shield, Info, Trash2, LogOut, ChevronRight, Settings, X, Edit2, Globe, Clock, Plus } from 'lucide-react';
 import EditCatchModal from './EditCatchModal';
+import AddCatchModal from './AddCatchModal';
 import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import API_BASE from '../apiConfig';
@@ -33,6 +34,7 @@ const Setup = ({ onLogout }) => {
     const [revierweltEnabled, setRevierweltEnabled] = useState(false);
     const [dailyStatusEnabled, setDailyStatusEnabled] = useState(false);
     const [dailyStatusTime, setDailyStatusTime] = useState('08:00');
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
     const [showRevierwelt, setShowRevierwelt] = useState(false);
     const [showIntegrations, setShowIntegrations] = useState(false);
@@ -821,8 +823,30 @@ const Setup = ({ onLogout }) => {
                     </div>
                 </section>
 
+                {/* Add CatchSensor Section */}
+                <section>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">Catchsensor hinzufügen</label>
+                    <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                        <button
+                            onClick={() => setIsAddModalOpen(true)}
+                            className="w-full p-4 flex items-center justify-between hover:bg-gray-50 transition-colors group"
+                        >
+                            <div className="flex items-center space-x-4">
+                                <div className="bg-green-50 p-2.5 rounded-2xl text-green-700 group-hover:bg-green-100 transition-colors">
+                                    <Plus size={20} />
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-sm font-bold text-gray-900">Neuen Melder registrieren</p>
+                                    <p className="text-[10px] text-gray-400 font-medium">NB-IoT oder LoRaWAN Gerät hinzufügen</p>
+                                </div>
+                            </div>
+                            <ChevronRight size={18} className="text-gray-300" />
+                        </button>
+                    </div>
+                </section>
+
                 {/* CatchSensor Management Section */}
-                < section >
+                <section>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 ml-1">CatchSensor Verwalten</label>
                     <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden text-center">
                         {loading ? (
@@ -1188,6 +1212,13 @@ const Setup = ({ onLogout }) => {
                     onClose={() => setIsEditModalOpen(false)}
                     catchSensor={catchToEdit}
                     onEdit={handleCatchUpdated}
+                    revierweltEnabled={revierweltEnabled}
+                />
+
+                <AddCatchModal
+                    isOpen={isAddModalOpen}
+                    onClose={() => setIsAddModalOpen(false)}
+                    onAdd={(newCatch) => setCatches([...catches, newCatch])}
                     revierweltEnabled={revierweltEnabled}
                 />
 
