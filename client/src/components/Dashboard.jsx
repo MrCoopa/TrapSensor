@@ -166,7 +166,6 @@ const Dashboard = ({ onLogout }) => {
             auth: {
                 token: token
             },
-            transports: ['websocket', 'polling'],
             reconnectionAttempts: 10,
             reconnectionDelay: 2000,
             timeout: 10000
