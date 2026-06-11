@@ -199,13 +199,13 @@ const setupWatchdog = (io) => {
 
                 let messageText = '';
                 if (triggeredCount === 0 && inactiveCount === 0) {
-                    messageText = 'Fallenstatus: Alle Melder online.';
+                    messageText = 'Alle Melder online.';
                 } else {
                     const statusParts = [];
                     if (activeCount > 0) statusParts.push(`${activeCount} online`);
-                    if (triggeredCount > 0) statusParts.push(`${triggeredCount}  ausgelöst`);
+                    if (triggeredCount > 0) statusParts.push(`${triggeredCount} ausgelöst`);
                     if (inactiveCount > 0) statusParts.push(`${inactiveCount} offline`);
-                    messageText = `Fallenstatus: ${statusParts.join(', ')}.`;
+                    messageText = `${statusParts.join(', ')}.`;
                 }
 
                 console.log(`DailyStatus: Sending report to user ${user.email} at ${currentTimeString}: "${messageText}"`);
