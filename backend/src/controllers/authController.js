@@ -4,6 +4,7 @@ const Reading = require('../models/Reading');
 const PushSubscription = require('../models/PushSubscription');
 const CatchShare = require('../models/CatchShare');
 const sequelize = require('../config/database');
+const { sendWelcomeEmail } = require('../services/emailService');
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id) => {
@@ -51,6 +52,11 @@ const registerUser = async (req, res) => {
                 email: user.email,
                 name: user.name,
                 token: generateToken(user.id),
+            });
+
+            // Send welcome email asynchronously in the background
+            sendWelcomeEmail(user.email, user.name).catch(err => {
+                console.error('Mail: Background error in sendWelcomeEmail:', err);
             });
         }
     } catch (error) {
