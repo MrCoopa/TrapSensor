@@ -11,6 +11,8 @@ const Setup = ({ onLogout }) => {
     const [loading, setLoading] = useState(true);
     const [currentUser, setCurrentUser] = useState(null);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const [confirmDeleteText, setConfirmDeleteText] = useState('');
     const [passwordData, setPasswordData] = useState({
         currentPassword: '',
         newPassword: '',
@@ -436,6 +438,38 @@ const Setup = ({ onLogout }) => {
         }
     };
 
+    const handleDeleteAccount = async () => {
+        if (confirmDeleteText !== 'LÖSCHEN') {
+            setStatusMessage({ text: 'Bitte geben Sie "LÖSCHEN" ein, um zu bestätigen.', type: 'error' });
+            return;
+        }
+
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_BASE}/api/auth/me`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setStatusMessage({ text: 'Account erfolgreich gelöscht. Auf Wiedersehen!', type: 'success' });
+                setTimeout(() => {
+                    setIsDeletingAccount(false);
+                    onLogout();
+                }, 2000);
+            } else {
+                setStatusMessage({ text: data.message || 'Fehler beim Löschen des Accounts.', type: 'error' });
+            }
+        } catch (error) {
+            console.error('Delete account error:', error);
+            setStatusMessage({ text: 'Verbindungsfehler zum Server. Prüfen Sie die Internetverbindung.', type: 'error' });
+        }
+    };
+
 
 
 
@@ -505,6 +539,65 @@ const Setup = ({ onLogout }) => {
 
 
                         </form>
+                    </div>
+                </main>
+            </div>
+        );
+    }
+
+    if (isDeletingAccount) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex flex-col">
+                <header className="bg-[#1b3a2e] text-white pt-12 pb-4 px-6 sticky top-0 z-30 shadow-md">
+                    <div className="flex items-center space-x-3 max-w-2xl mx-auto">
+                        <button onClick={() => setIsDeletingAccount(false)} className="bg-white/10 p-2 rounded-xl">
+                            <ChevronRight size={20} className="rotate-180" />
+                        </button>
+                        <h1 className="text-xl font-bold">Konto löschen</h1>
+                    </div>
+                </header>
+
+                <main className="max-w-2xl mx-auto w-full px-6 pt-8">
+                    <div className="bg-white rounded-[2rem] shadow-xl p-8 border border-gray-100 space-y-6">
+                        <div className="bg-red-50 text-red-800 p-4 rounded-2xl border border-red-100 space-y-2">
+                            <h3 className="font-bold text-sm">⚠️ ACHTUNG: Unwiderrufliche Aktion</h3>
+                            <p className="text-xs leading-relaxed">
+                                Wenn Sie Ihr Konto löschen, werden alle Ihre Daten (inklusive registrierter Melder, historischer Messwerte und Freigaben) dauerhaft und unwiderruflich gelöscht.
+                            </p>
+                        </div>
+
+                        {statusMessage.text && (
+                            <div className={`p-4 rounded-2xl text-sm font-bold ${statusMessage.type === 'success' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                                {statusMessage.text}
+                            </div>
+                        )}
+
+                        <div className="space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                                    Geben Sie zur Bestätigung <strong>LÖSCHEN</strong> ein:
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="LÖSCHEN"
+                                    className="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl px-4 py-3 text-sm focus:bg-white focus:border-red-500/20 outline-none transition-all font-bold tracking-widest text-center"
+                                    value={confirmDeleteText}
+                                    onChange={(e) => setConfirmDeleteText(e.target.value)}
+                                />
+							</div>
+
+                            <button
+                                onClick={handleDeleteAccount}
+                                disabled={confirmDeleteText !== 'LÖSCHEN'}
+                                className={`w-full py-4 rounded-2xl font-black text-white text-sm uppercase tracking-widest transition-all ${
+                                    confirmDeleteText === 'LÖSCHEN'
+                                        ? 'bg-red-600 shadow-lg shadow-red-600/20 hover:scale-[1.02] active:scale-[0.98]'
+                                        : 'bg-gray-200 cursor-not-allowed text-gray-400'
+                                }`}
+                            >
+                                Konto jetzt löschen
+                            </button>
+                        </div>
                     </div>
                 </main>
             </div>
@@ -817,6 +910,23 @@ const Setup = ({ onLogout }) => {
                                     <LogOut size={20} />
                                 </div>
                                 <div className="text-sm font-bold text-red-600">Abmelden</div>
+                            </div>
+                            <ChevronRight size={18} className="text-red-300" />
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                setConfirmDeleteText('');
+                                setStatusMessage({ text: '', type: '' });
+                                setIsDeletingAccount(true);
+                            }}
+                            className="w-full text-left p-4 flex items-center justify-between hover:bg-red-100/30 transition-colors group"
+                        >
+                            <div className="flex items-center space-x-4">
+                                <div className="bg-red-50 p-2.5 rounded-2xl text-red-600 group-hover:bg-red-100 transition-colors">
+                                    <Trash2 size={20} />
+                                </div>
+                                <div className="text-sm font-bold text-red-600">Account löschen</div>
                             </div>
                             <ChevronRight size={18} className="text-red-300" />
                         </button>

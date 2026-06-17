@@ -1,4 +1,9 @@
 const User = require('../models/User');
+const CatchSensor = require('../models/CatchSensor');
+const Reading = require('../models/Reading');
+const PushSubscription = require('../models/PushSubscription');
+const CatchShare = require('../models/CatchShare');
+const sequelize = require('../config/database');
 const jwt = require('jsonwebtoken');
 
 const generateToken = (id) => {
@@ -165,6 +170,47 @@ const updateProfile = async (req, res) => {
 
 
 
+const deleteUser = async (req, res) => {
+    const userId = req.user.id;
+    const transaction = await sequelize.transaction();
+
+    try {
+        console.log(`Auth: 🗑️ Deleting user ${userId} and all associated data...`);
+
+        // 1. Delete PushSubscriptions
+        await PushSubscription.destroy({ where: { userId }, transaction });
+
+        // 2. Delete CatchShares (both where user is sharing, or shared with)
+        await CatchShare.destroy({ where: { userId }, transaction });
+
+        // 3. Find all CatchSensors owned by the user
+        const sensors = await CatchSensor.findAll({ where: { userId } });
+        const sensorIds = sensors.map(s => s.id);
+
+        if (sensorIds.length > 0) {
+            // Delete CatchShares associated with user's sensors
+            await CatchShare.destroy({ where: { catchSensorId: sensorIds }, transaction });
+
+            // Delete Readings associated with user's sensors
+            await Reading.destroy({ where: { catchSensorId: sensorIds }, transaction });
+
+            // Delete the CatchSensors themselves
+            await CatchSensor.destroy({ where: { id: sensorIds }, transaction });
+        }
+
+        // 4. Finally, delete the User
+        await User.destroy({ where: { id: userId }, transaction });
+
+        await transaction.commit();
+        console.log(`Auth: ✅ User ${userId} successfully deleted.`);
+        res.json({ message: 'User account and all associated data successfully deleted.' });
+    } catch (error) {
+        await transaction.rollback();
+        console.error('Delete User Error:', error);
+        res.status(500).json({ message: 'Server error during user deletion' });
+    }
+};
+
 module.exports = {
     registerUser,
     loginUser,
@@ -172,6 +218,7 @@ module.exports = {
     changePassword,
     updateProfile,
     refreshToken,
+    deleteUser,
 };
 
 
