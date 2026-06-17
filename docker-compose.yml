@@ -8,12 +8,12 @@ services:
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
     ports:
-      - "443:5000"
-      - "1884:1884"
-      - "1885:1885"
+      - "${HOST_PORT:-5000}:${PORT:-5000}"
+      - "${MQTT_TCP_PORT:-1884}:1884"
+      - "${MQTT_WS_PORT:-1885}:1885"
     environment:
       - TZ=Europe/Berlin
-      - PORT=5000
+      - PORT=${PORT:-5000}
       - DB_HOST=catchsensor_db
       - DB_USER=root
       - DB_PASS=root
