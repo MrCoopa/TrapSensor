@@ -2,6 +2,7 @@
 #include "config.h"
 #include "sim7020_mqtt.h"
 #include "aes256.h"
+#include "sha256.h"
 
 #ifdef ARDUINO_ARCH_STM32
 #include <STM32RTC.h>
@@ -81,7 +82,7 @@ void generateRandomKey(uint8_t* keyOut) {
 }
 
 // Interrupt Service Routine for Reed Sensor
-void IRAM_ATTR handleReedInterrupt() {
+void handleReedInterrupt() {
     sensorTriggered = true;
 }
 
@@ -125,6 +126,7 @@ void loop() {
 
         // 1. Wake SIM
         sim7020_powerUp(PIN_SIM_PWR);
+        String imei = sim7020_getIMEI();
 
         // 2. Read Sensors
         uint16_t voltageMv = readBatteryVoltage();
@@ -141,7 +143,8 @@ void loop() {
             uint8_t activeKey[32] = {0};
             bool provisioned = isDeviceProvisioned();
             
-            if (USE_TOFU && !provisioned) {
+#if USE_TOFU
+            if (!provisioned) {
                 Serial.println("TOFU: Device not provisioned. Starting handshake...");
                 uint8_t newKey[32]; // AES-256 individual key
                 generateRandomKey(newKey); // Assume this can generate 32 bytes
@@ -170,10 +173,26 @@ void loop() {
                 sim7020_powerDown(PIN_SIM_PWR);
                 return; 
             }
+#endif
 
             uint32_t counter = getMessageCounter();
             incrementMessageCounter();
             
+#if defined(MASTER_SALT)
+            if (imei != "UNKNOWN_IMEI" && strlen(MASTER_SALT) > 0) {
+                String inputStr = imei + MASTER_SALT;
+                sha256_hash((const uint8_t*)inputStr.c_str(), inputStr.length(), activeKey);
+                Serial.print("AES: Using derived key (Master Salt). FCnt: "); Serial.println(counter);
+            } else {
+                if (provisioned) {
+                    getIndividualKey(activeKey);
+                    Serial.print("AES: Using individual key. FCnt: "); Serial.println(counter);
+                } else {
+                    memcpy(activeKey, AES_KEY, 32);
+                    Serial.print("AES: Using global key. FCnt: "); Serial.println(counter);
+                }
+            }
+#else
             if (provisioned) {
                 getIndividualKey(activeKey); // Uses 16-byte key (AES-128 logic)
                 Serial.print("AES: Using individual key. FCnt: "); Serial.println(counter);
@@ -181,6 +200,7 @@ void loop() {
                 memcpy(activeKey, AES_KEY, 32);
                 Serial.print("AES: Using global key. FCnt: "); Serial.println(counter);
             }
+#endif
 
             uint8_t block[16] = {0};
             block[0] = status;
@@ -215,7 +235,6 @@ void loop() {
         }
 
         // 4. Send Data via MQTT
-        String imei = sim7020_getIMEI();
         String topic = "catches/" + imei + "/data";
 
         if (sim7020_connectToNetwork()) {
