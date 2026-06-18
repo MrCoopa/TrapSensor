@@ -235,7 +235,20 @@ void loop() {
         }
 
         // 4. Send Data via MQTT
-        String topic = "catches/" + imei + "/data";
+        String deviceId = imei;
+#if defined(MASTER_SALT)
+        if (imei != "UNKNOWN_IMEI" && strlen(MASTER_SALT) > 0) {
+            uint8_t hashBytes[32];
+            String inputStr = imei + MASTER_SALT;
+            sha256_hash((const uint8_t*)inputStr.c_str(), inputStr.length(), hashBytes);
+            char hashHex[17] = {0};
+            for (int i = 0; i < 8; i++) {
+                sprintf(&hashHex[i * 2], "%02X", hashBytes[i]);
+            }
+            deviceId = String(hashHex);
+        }
+#endif
+        String topic = "catches/" + deviceId + "/data";
 
         if (sim7020_connectToNetwork()) {
             sim7020_getSignalStats(rsrpAbs, rsrqAbs, sinrSigned);
