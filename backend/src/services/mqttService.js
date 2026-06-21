@@ -84,6 +84,9 @@ const connectToBroker = (config, onMessage) => {
     let reconnectTimer      = null;
 
     const attempt = () => {
+        reconnectTimer = null;
+        let expectedClose = false;
+
         // Circuit breaker: if open, wait until reset period has elapsed
         if (circuitOpenedAt !== null) {
             const elapsed = Date.now() - circuitOpenedAt;
@@ -134,6 +137,8 @@ const connectToBroker = (config, onMessage) => {
         });
 
         const scheduleReconnect = (reason) => {
+            if (reconnectTimer) return;
+            expectedClose = true;
             client.end(true); // force-close without waiting
 
             consecutiveFailures++;
@@ -160,7 +165,7 @@ const connectToBroker = (config, onMessage) => {
         client.on('close', () => {
             // 'close' fires after a clean disconnect or after 'error'. Only act if not already
             // scheduled for reconnect (i.e. the close wasn't caused by our own client.end()).
-            if (!reconnectTimer && consecutiveFailures > 0) {
+            if (!expectedClose && !reconnectTimer) {
                 scheduleReconnect('Connection closed');
             }
         });

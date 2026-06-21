@@ -18,11 +18,13 @@
 #ifdef STM32L0
     #define PIN_REED         PB1
     #define PIN_ADC_BATT     PA0
+    #define PIN_ADC_CTRL     PA4
     #define PIN_SIM_PWR      PA1
     #define SIM_SERIAL       Serial1  // PA2 (TX), PA3 (RX)
 #else // STM32L4
     #define PIN_REED         PB1
     #define PIN_ADC_BATT     PA0
+    #define PIN_ADC_CTRL     PA4
     #define PIN_SIM_PWR      PA1
     #define SIM_SERIAL       Serial1
 #endif

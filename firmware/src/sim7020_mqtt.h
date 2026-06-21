@@ -12,5 +12,6 @@ void sim7020_getSignalStats(uint8_t &rsrp, uint8_t &rsrq, int8_t &sinr);
 bool sim7020_mqttConnect(const char* host, int port);
 void sim7020_mqttPublish(const char* topic, const char* payloadHex, int len);
 void sim7020_mqttDisconnect();
+bool sim7020_getTime(uint8_t &day, uint8_t &month, uint8_t &year, uint8_t &hours, uint8_t &minutes, uint8_t &seconds);
 
 #endif

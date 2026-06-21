@@ -17,15 +17,27 @@ bool sendATCommand(const char* cmd, const char* expected, uint32_t timeout = 200
 }
 
 void sim7020_powerUp(int pwrPin) {
+    // Check if already awake (e.g. if it didn't enter PSM yet or is already awake)
+    if (sendATCommand("AT", "OK", 300)) {
+        return;
+    }
+    // Pulse PWR_KEY to wake from PSM / power up
     digitalWrite(pwrPin, HIGH);
     delay(500);
     digitalWrite(pwrPin, LOW);
-    delay(5000); // Wait for SIM7020 to boot
-    sendATCommand("AT", "OK");
+    
+    // Wait up to 5 seconds for response
+    uint32_t start = millis();
+    while (millis() - start < 5000) {
+        if (sendATCommand("AT", "OK", 300)) {
+            return;
+        }
+    }
 }
 
 void sim7020_powerDown(int pwrPin) {
-    sendATCommand("AT+CPOWD=1", "NORMAL POWER DOWN");
+    // In PSM mode, we do not power down the module. 
+    // We just let it enter PSM automatically when idle.
 }
 
 String sim7020_getIMEI() {
@@ -40,6 +52,8 @@ String sim7020_getIMEI() {
 }
 
 bool sim7020_connectToNetwork() {
+    // Configure PSM mode with T3412 (Periodic TAU) = 40 hours and T3324 (Active Time) = 2 seconds
+    sendATCommand("AT+CPSMS=1,,,\"01000100\",\"00000001\"", "OK");
     if (!sendATCommand("AT+CSQ", "OK")) return false;
     if (!sendATCommand("AT+CGATT?", "+CGATT: 1")) {
         sendATCommand("AT+CGATT=1", "OK", 10000);
@@ -118,4 +132,28 @@ void sim7020_mqttPublish(const char* topic, const char* payloadHex, int len) {
 
 void sim7020_mqttDisconnect() {
     sendATCommand("AT+CMQDISCON=0", "OK");
+}
+
+bool sim7020_getTime(uint8_t &day, uint8_t &month, uint8_t &year, uint8_t &hours, uint8_t &minutes, uint8_t &seconds) {
+    SIM_SERIAL.println("AT+CCLK?");
+    delay(150); // Give module time to output response
+    String response = "";
+    while (SIM_SERIAL.available()) {
+        response += (char)SIM_SERIAL.read();
+    }
+    
+    int quote = response.indexOf("\"");
+    if (quote != -1) {
+        String timeStr = response.substring(quote + 1, response.lastIndexOf("\""));
+        if (timeStr.length() >= 17) {
+            year = (uint8_t)timeStr.substring(0, 2).toInt();
+            month = (uint8_t)timeStr.substring(3, 5).toInt();
+            day = (uint8_t)timeStr.substring(6, 8).toInt();
+            hours = (uint8_t)timeStr.substring(9, 11).toInt();
+            minutes = (uint8_t)timeStr.substring(12, 14).toInt();
+            seconds = (uint8_t)timeStr.substring(15, 17).toInt();
+            return true;
+        }
+    }
+    return false;
 }
