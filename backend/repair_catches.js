@@ -4,7 +4,7 @@ const { Op } = require('sequelize');
 
 async function repairCatchSensors() {
     try {
-        const eightHoursAgo = new Date(Date.now() - 8 * 60 * 60 * 1000);
+        const eightHoursAgo = new Date(Date.now() - (8 * 60 + 10) * 60 * 1000);
 
         // Find CatchSensors that are 'inactive' but have been seen recently
         const wronglyOffline = await CatchSensor.findAll({

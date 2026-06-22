@@ -9,7 +9,7 @@ const { sendUnifiedNotification } = require('./notificationService');
  * Watchdog Service
  * Runs every 15 minutes and handles persistent repeat alerts for:
  *  - ALARM (triggered):       repeat every 3h until user resets to active
- *  - CONNECTION_LOST (offline): repeat every 8h until sensor comes back online
+ *  - CONNECTION_LOST (offline): repeat every 8h 10m until sensor comes back online
  *  - LOW_BATTERY:             repeat every 8h until battery is charged
  *
  * "Confirmation" is the natural state change:
@@ -62,7 +62,7 @@ const setupWatchdog = (io) => {
 
                 const catchInterval = 3;   // hours between triggered repeat alerts
                 const batteryInterval = 8;   // hours between battery alerts
-                const offlineInterval = 8;   // hours before/between offline alerts
+                const offlineInterval = 8 + 10 / 60;   // hours before/between offline alerts (8h 10m)
 
                 const sensorLabel = sensor.alias || sensor.name || sensor.deviceId || sensor.imei;
 
